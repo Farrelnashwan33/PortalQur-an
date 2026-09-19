@@ -56,7 +56,7 @@
 	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-extrabold text-quran-dark">Tafsir & Translation Management</h1>
-			<p class="text-xs text-quran-warm">Kelola terjemahan resmi Kemenag RI dan naskah tafsir ringkas per ayat secara real-time.</p>
+			<p class="text-xs text-quran-warm">Kelola naskah Tafsir Ibnu Katsir dan terjemahan per ayat secara real-time.</p>
 		</div>
 
 		<button 
@@ -70,7 +70,7 @@
 
 	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 		<div class="lg:col-span-6 space-y-3">
-			<h3 class="text-xs font-bold uppercase tracking-wider text-quran-chocolate">Daftar Sampel Ayat & Terjemahan ({$tafsirStore.length})</h3>
+			<h3 class="text-xs font-bold uppercase tracking-wider text-quran-chocolate">Daftar Naskah Tafsir ({$tafsirStore.length})</h3>
 			<div class="space-y-2">
 				{#each $tafsirStore as item (item.surah_number + '-' + item.ayah_number)}
 					<div 
@@ -79,7 +79,7 @@
 						<div class="flex items-center justify-between">
 							<span class="text-xs font-bold text-quran-dark">Surah {item.surah_number} : Ayat {item.ayah_number}</span>
 							<div class="flex items-center gap-2">
-								<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Kemenag RI</span>
+								<span class="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Tafsir Ibnu Katsir</span>
 								<button 
 									on:click={() => handleDelete(item.surah_number, item.ayah_number)}
 									class="p-1 text-quran-warm hover:text-red-600 rounded-lg hover:bg-red-50 transition"
@@ -208,7 +208,7 @@
 					<textarea 
 						id="new-tafsir-trans"
 						rows="2" 
-						placeholder="Terjemahan Kemenag RI..." 
+						placeholder="Terjemahan ayat..." 
 						bind:value={newTranslation}
 						class="w-full px-3.5 py-2 rounded-xl bg-quran-sand border border-quran-border text-xs text-quran-dark focus:border-quran-gold focus:outline-none resize-none"
 					></textarea>

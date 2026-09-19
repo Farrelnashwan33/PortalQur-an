@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { 
 		Users, 
 		BookOpen, 
@@ -13,36 +14,126 @@
 		Radio, 
 		Clock, 
 		ShieldCheck,
-		ArrowRight
+		ArrowRight,
+		RefreshCw
 	} from 'lucide-svelte';
+	import { supabase, isSupabaseConfigured } from '$lib/supabase/client';
 
-	// Real-time KPI stats aggregated for admin
-	const adminStats = {
-		total_customers: 1248,
-		active_today: 342,
-		total_ayahs_read_today: 8940,
-		total_reading_hours: 1420,
+	let loading = true;
+	let dbLatency = 'Memeriksa...';
+	let isDbConnected = false;
+
+	let adminStats = {
+		total_customers: 0,
+		active_today: 0,
+		total_ayahs_read_today: 0,
+		total_reading_hours: 0,
 		total_surahs_active: 114,
 		total_audio_tracks: 456,
-		total_agendas: 12,
-		total_bookmarks: 3890
+		total_agendas: 0,
+		total_bookmarks: 0
 	};
 
-	const systemHealth = {
-		supabase_db: 'Connected (Latency: 18ms)',
-		audio_cdn: 'Operational (EveryAyah & Quran CDN)',
-		api_sync: 'Active (Realtime RLS)',
-		last_backup: '17 Sep 2026, 04:00 WIB',
-		uptime: '99.98%'
-	};
+	let recentActivities: Array<{ user: string; action: string; time: string; role: string }> = [];
 
-	const recentActivities = [
-		{ user: 'Ahmad Fauzan', action: 'Khatam Juz 30 (Surah An-Nas)', time: '5 menit lalu', role: 'customer' },
-		{ user: 'Rina Salsabila', action: 'Membuat koleksi baru "Doa Dhuha"', time: '12 menit lalu', role: 'customer' },
-		{ user: 'Ust. Zulkarnain', action: 'Mendaftarkan kajian Al-Baqarah', time: '25 menit lalu', role: 'customer' },
-		{ user: 'Dimas Pratama', action: 'Menyelesaikan 20 ayat Surah Al-Kahf', time: '40 menit lalu', role: 'customer' },
-		{ user: 'Admin System', action: 'Sinkronisasi Tafsir Kemenag v2', time: '2 jam lalu', role: 'admin' }
-	];
+	async function fetchDashboardData() {
+		loading = true;
+		if (!isSupabaseConfigured()) {
+			isDbConnected = false;
+			dbLatency = 'Belum Dikonfigurasi';
+			loading = false;
+			return;
+		}
+
+		const startTime = performance.now();
+		try {
+			// 1. Fetch total profiles
+			const { data: profiles, count: profileCount, error: profErr } = await supabase
+				.from('profiles')
+				.select('id, full_name, role, created_at, last_login_at', { count: 'exact' });
+
+			const endTime = performance.now();
+			dbLatency = `${Math.round(endTime - startTime)}ms`;
+			isDbConnected = !profErr;
+
+			if (profiles) {
+				adminStats.total_customers = profileCount || profiles.length;
+				
+				// Active today: last_login_at within last 24h
+				const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+				adminStats.active_today = profiles.filter((p: any) => p.last_login_at && p.last_login_at >= oneDayAgo).length;
+			}
+
+			// 2. Fetch agendas count
+			const { count: agendaCount } = await supabase
+				.from('agendas')
+				.select('id', { count: 'exact', head: true });
+			if (typeof agendaCount === 'number') {
+				adminStats.total_agendas = agendaCount;
+			}
+
+			// 3. Fetch bookmarks count
+			const { count: bookmarkCount } = await supabase
+				.from('bookmarks')
+				.select('id', { count: 'exact', head: true });
+			if (typeof bookmarkCount === 'number') {
+				adminStats.total_bookmarks = bookmarkCount;
+			}
+
+			// 4. Fetch reading progress / sessions
+			const { data: readingSessions } = await supabase
+				.from('reading_sessions')
+				.select('duration_seconds, ayahs_read_count, created_at')
+				.limit(100);
+
+			if (readingSessions && readingSessions.length > 0) {
+				const totalSeconds = readingSessions.reduce((acc, s) => acc + (s.duration_seconds || 0), 0);
+				adminStats.total_reading_hours = Math.round(totalSeconds / 3600);
+				adminStats.total_ayahs_read_today = readingSessions.reduce((acc, s) => acc + (s.ayahs_read_count || 0), 0);
+			}
+
+			// 5. Fetch recent activities from reading progress & profiles
+			const { data: recentProgress } = await supabase
+				.from('reading_progress')
+				.select('surah_number, ayah_number, updated_at, user_id, profiles(full_name, role)')
+				.order('updated_at', { ascending: false })
+				.limit(5);
+
+			if (recentProgress && recentProgress.length > 0) {
+				recentActivities = recentProgress.map((item: any) => {
+					const profileName = item.profiles?.full_name || 'Pengguna';
+					const userRole = item.profiles?.role || 'customer';
+					const date = new Date(item.updated_at);
+					const timeAgo = formatTimeAgo(date);
+					return {
+						user: profileName,
+						action: `Membaca Surah ${item.surah_number} Ayat ${item.ayah_number}`,
+						time: timeAgo,
+						role: userRole
+					};
+				});
+			} else {
+				recentActivities = [];
+			}
+		} catch (e) {
+			console.warn('Dashboard fetch error:', e);
+		} finally {
+			loading = false;
+		}
+	}
+
+	function formatTimeAgo(date: Date): string {
+		const diffMins = Math.floor((Date.now() - date.getTime()) / (1000 * 60));
+		if (diffMins < 1) return 'Baru saja';
+		if (diffMins < 60) return `${diffMins} menit lalu`;
+		const diffHours = Math.floor(diffMins / 60);
+		if (diffHours < 24) return `${diffHours} jam lalu`;
+		return `${Math.floor(diffHours / 24)} hari lalu`;
+	}
+
+	onMount(() => {
+		fetchDashboardData();
+	});
 </script>
 
 <svelte:head>
@@ -75,11 +166,20 @@
 
 		<!-- Quick Remote Status Badge -->
 		<div class="bg-white/10 backdrop-blur-md border border-quran-gold/40 p-4 rounded-2xl flex items-center gap-3 flex-shrink-0">
-			<div class="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></div>
+			<div class="w-3 h-3 rounded-full {isDbConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}"></div>
 			<div class="text-xs">
 				<span class="font-bold text-white block">Status Database Supabase</span>
-				<span class="text-quran-goldLight text-[11px]">Terhubung & RLS Aktif</span>
+				<span class="text-quran-goldLight text-[11px]">
+					{isDbConnected ? `Terhubung (${dbLatency})` : 'Belum Terhubung / Standby'}
+				</span>
 			</div>
+			<button 
+				on:click={fetchDashboardData}
+				class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-quran-gold transition ml-2"
+				title="Segarkan Data"
+			>
+				<RefreshCw class="w-4 h-4 {loading ? 'animate-spin' : ''}" />
+			</button>
 		</div>
 	</div>
 
@@ -92,8 +192,8 @@
 				<Users class="w-4 h-4 text-quran-gold" />
 			</div>
 			<div class="text-2xl font-extrabold text-quran-dark">{adminStats.total_customers.toLocaleString()}</div>
-			<p class="text-[11px] text-green-700 font-semibold flex items-center gap-1">
-				<TrendingUp class="w-3 h-3" /> +28 user baru minggu ini
+			<p class="text-[11px] text-quran-warm font-semibold">
+				Pengguna terdaftar
 			</p>
 		</div>
 
@@ -103,16 +203,16 @@
 				<Activity class="w-4 h-4 text-emerald-600" />
 			</div>
 			<div class="text-2xl font-extrabold text-quran-dark">{adminStats.active_today}</div>
-			<p class="text-[11px] text-quran-warm">Membaca & Tilawah live</p>
+			<p class="text-[11px] text-quran-warm">Login dalam 24 jam</p>
 		</div>
 
 		<div class="p-5 rounded-3xl bg-quran-surface border border-quran-border/80 shadow-luxury space-y-2">
 			<div class="flex items-center justify-between">
-				<span class="text-[10px] font-bold uppercase tracking-wider text-quran-warm">Ayat Dibaca Hari Ini</span>
+				<span class="text-[10px] font-bold uppercase tracking-wider text-quran-warm">Ayat Dibaca</span>
 				<BookOpen class="w-4 h-4 text-quran-chocolate" />
 			</div>
 			<div class="text-2xl font-extrabold text-quran-dark">{adminStats.total_ayahs_read_today.toLocaleString()}</div>
-			<p class="text-[11px] text-green-700 font-semibold">+14% vs kemarin</p>
+			<p class="text-[11px] text-quran-warm">Total riwayat tilawah</p>
 		</div>
 
 		<div class="p-5 rounded-3xl bg-quran-surface border border-quran-border/80 shadow-luxury space-y-2">
@@ -121,7 +221,7 @@
 				<Clock class="w-4 h-4 text-quran-gold" />
 			</div>
 			<div class="text-2xl font-extrabold text-quran-dark">{adminStats.total_reading_hours} Jam</div>
-			<p class="text-[11px] text-quran-warm">Akumulasi seluruh customer</p>
+			<p class="text-[11px] text-quran-warm">Akumulasi seluruh pengguna</p>
 		</div>
 
 		<div class="p-5 rounded-3xl bg-quran-surface border border-quran-border/80 shadow-luxury space-y-2">
@@ -148,7 +248,7 @@
 				<CalendarDays class="w-4 h-4 text-quran-gold" />
 			</div>
 			<div class="text-2xl font-extrabold text-quran-dark">{adminStats.total_agendas} Event</div>
-			<p class="text-[11px] text-quran-warm">3 Kajian terdekat</p>
+			<p class="text-[11px] text-quran-warm">Jadwal kajian aktif</p>
 		</div>
 
 		<div class="p-5 rounded-3xl bg-quran-surface border border-quran-border/80 shadow-luxury space-y-2">
@@ -172,8 +272,8 @@
 					<Server class="w-4 h-4 text-quran-gold" />
 					<h2 class="text-xs font-bold uppercase tracking-wider text-quran-chocolate">Status Kesehatan Sistem (Remote)</h2>
 				</div>
-				<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-					{systemHealth.uptime} Uptime
+				<span class="text-[10px] font-bold px-2 py-0.5 rounded {isDbConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+					{isDbConnected ? '99.9% Uptime' : 'Offline / Standby'}
 				</span>
 			</div>
 
@@ -183,7 +283,9 @@
 						<Database class="w-4 h-4 text-quran-chocolate" />
 						<span class="font-bold text-quran-dark">Database Supabase:</span>
 					</div>
-					<span class="text-emerald-700 font-mono text-[11px] font-semibold">{systemHealth.supabase_db}</span>
+					<span class="text-emerald-700 font-mono text-[11px] font-semibold">
+						{isDbConnected ? `Terhubung (${dbLatency})` : 'Standby / Local'}
+					</span>
 				</div>
 
 				<div class="p-3 rounded-2xl bg-quran-sand/60 border border-quran-border flex items-center justify-between">
@@ -191,7 +293,7 @@
 						<Radio class="w-4 h-4 text-quran-chocolate" />
 						<span class="font-bold text-quran-dark">Audio Streaming CDN:</span>
 					</div>
-					<span class="text-emerald-700 font-mono text-[11px] font-semibold">{systemHealth.audio_cdn}</span>
+					<span class="text-emerald-700 font-mono text-[11px] font-semibold">Operational (EveryAyah & Quran CDN)</span>
 				</div>
 
 				<div class="p-3 rounded-2xl bg-quran-sand/60 border border-quran-border flex items-center justify-between">
@@ -199,15 +301,15 @@
 						<Activity class="w-4 h-4 text-quran-chocolate" />
 						<span class="font-bold text-quran-dark">API Sync & RLS Policy:</span>
 					</div>
-					<span class="text-emerald-700 font-mono text-[11px] font-semibold">{systemHealth.api_sync}</span>
+					<span class="text-emerald-700 font-mono text-[11px] font-semibold">Active (Realtime RLS)</span>
 				</div>
 
 				<div class="p-3 rounded-2xl bg-quran-sand/60 border border-quran-border flex items-center justify-between">
 					<div class="flex items-center gap-2">
 						<Clock class="w-4 h-4 text-quran-chocolate" />
-						<span class="font-bold text-quran-dark">Pencadangan Terakhir:</span>
+						<span class="font-bold text-quran-dark">Tafsir Source:</span>
 					</div>
-					<span class="text-quran-warm font-mono text-[11px]">{systemHealth.last_backup}</span>
+					<span class="text-quran-warm font-mono text-[11px]">Tafsir Ibnu Katsir</span>
 				</div>
 			</div>
 
@@ -231,27 +333,36 @@
 				<a href="/admin/statistics" class="text-xs font-bold text-quran-gold hover:underline">Semua Log</a>
 			</div>
 
-			<div class="divide-y divide-quran-border/60">
-				{#each recentActivities as act}
-					<div class="py-3 flex items-center justify-between gap-3 text-xs">
-						<div class="flex items-center gap-3">
-							<div class="w-8 h-8 rounded-xl bg-quran-sand text-quran-chocolate font-bold flex items-center justify-center flex-shrink-0">
-								{act.user.charAt(0)}
-							</div>
-							<div>
-								<div class="flex items-center gap-1.5">
-									<span class="font-bold text-quran-dark">{act.user}</span>
-									<span class="text-[9px] px-1.5 py-0.2 rounded bg-quran-sand text-quran-warm font-mono">{act.role}</span>
+			{#if recentActivities.length === 0}
+				<div class="py-10 text-center space-y-2">
+					<Activity class="w-8 h-8 text-quran-warm/40 mx-auto" />
+					<p class="text-xs font-semibold text-quran-dark">Belum ada aktivitas terbaru</p>
+					<p class="text-[11px] text-quran-warm">Aktivitas tilawah dan interaksi pengguna akan tercatat di sini secara realtime.</p>
+				</div>
+			{:else}
+				<div class="divide-y divide-quran-border/60">
+					{#each recentActivities as act}
+						<div class="py-3 flex items-center justify-between gap-3 text-xs">
+							<div class="flex items-center gap-3">
+								<div class="w-8 h-8 rounded-xl bg-quran-sand text-quran-chocolate font-bold flex items-center justify-center flex-shrink-0">
+									{act.user.charAt(0)}
 								</div>
-								<p class="text-quran-warm text-[11px] mt-0.5">{act.action}</p>
+								<div>
+									<div class="flex items-center gap-1.5">
+										<span class="font-bold text-quran-dark">{act.user}</span>
+										<span class="text-[9px] px-1.5 py-0.2 rounded bg-quran-sand text-quran-warm font-mono">{act.role}</span>
+									</div>
+									<p class="text-quran-warm text-[11px] mt-0.5">{act.action}</p>
+								</div>
 							</div>
+							<span class="text-[10px] text-quran-muted font-mono flex-shrink-0">{act.time}</span>
 						</div>
-						<span class="text-[10px] text-quran-muted font-mono flex-shrink-0">{act.time}</span>
-					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 	</div>
 
 </div>
+

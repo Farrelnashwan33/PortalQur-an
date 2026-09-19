@@ -73,7 +73,7 @@
 						{/if}
 						<div class="hidden sm:block text-left leading-tight">
 							<div class="text-xs font-bold text-quran-dark">{$authStore?.full_name || 'Admin Utama'}</div>
-							<div class="text-[10px] text-quran-warm font-mono">{$authStore?.email || 'admin@portalquran.id'}</div>
+							<div class="text-[10px] text-quran-warm font-mono">{$authStore?.email || 'Admin Portal'}</div>
 						</div>
 					</div>
 				</div>

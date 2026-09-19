@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { usersStore, type ManagedUser } from '$lib/stores/users';
 	import { authStore } from '$lib/stores/auth';
 	import { 
@@ -10,26 +11,27 @@
 		Trash2,
 		Flame, 
 		BookOpen, 
-		Mail,
-		CheckCircle,
-		XCircle,
-		Filter,
-		Plus,
-		X,
-		KeyRound,
-		Eye,
-		EyeOff,
-		Sparkles,
-		CheckCircle2,
-		AlertCircle
+		Mail, 
+		CheckCircle, 
+		XCircle, 
+		Filter, 
+		Plus, 
+		X, 
+		KeyRound, 
+		Eye, 
+		EyeOff, 
+		Sparkles, 
+		CheckCircle2, 
+		AlertCircle 
 	} from 'lucide-svelte';
 
 	let searchQuery = '';
 	let roleFilter = 'all';
 	let addModalOpen = false;
+	let isLoading = true;
 
 	let newName = '';
-	let newPhone = '';
+	let newEmail = '';
 	let newRole: 'customer' | 'admin' = 'customer';
 
 	// Reset Password State
@@ -41,8 +43,14 @@
 	let resetSuccessMsg = '';
 	let resetErrorMsg = '';
 
+	onMount(async () => {
+		isLoading = true;
+		await usersStore.fetchUsers();
+		isLoading = false;
+	});
+
 	$: filteredUsers = $usersStore.filter(u => {
-		const matchSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || (u.phone && u.phone.includes(searchQuery)) || (u.email && u.email.toLowerCase().includes(searchQuery.toLowerCase()));
+		const matchSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || ((u.email || '').toLowerCase().includes(searchQuery.toLowerCase()));
 		if (!matchSearch) return false;
 		if (roleFilter === 'all') return true;
 		return u.role === roleFilter;
@@ -63,12 +71,11 @@
 	}
 
 	function handleAddUser() {
-		if (!newName || !newPhone) return;
+		if (!newName || !newEmail) return;
 		const created: ManagedUser = {
 			id: 'usr-' + Date.now(),
 			name: newName,
-			phone: newPhone,
-			email: `${newPhone}@portalquran.id`,
+			email: newEmail,
 			role: newRole,
 			is_active: true,
 			ayahs_read: 0,
@@ -77,7 +84,7 @@
 		};
 		usersStore.addUser(created);
 		newName = '';
-		newPhone = '';
+		newEmail = '';
 		newRole = 'customer';
 		addModalOpen = false;
 	}
@@ -110,11 +117,9 @@
 		resetSuccessMsg = '';
 
 		try {
-			// 1. Update in usersStore / local persistence
-			usersStore.updatePassword(selectedUserForReset.id, selectedUserForReset.phone, newPassword);
-			
-			// 2. Sync with auth store reset handler
-			await authStore.resetPassword(selectedUserForReset.phone, newPassword);
+			// Sync with auth store reset handler if email exists
+			const userEmail = selectedUserForReset.email || `${selectedUserForReset.id}@portalquran.id`;
+			await authStore.resetPassword(userEmail, newPassword);
 
 			resetSuccessMsg = `Kata sandi untuk ${selectedUserForReset.name} berhasil diperbarui!`;
 			setTimeout(() => {
@@ -195,94 +200,110 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-quran-border/60">
-				{#each filteredUsers as user (user.id)}
-					<tr class="hover:bg-quran-sand/30 transition">
-						<td class="p-4">
-							<div class="flex items-center gap-3">
-								<div class="w-9 h-9 rounded-xl bg-gradient-luxury text-quran-gold font-bold flex items-center justify-center flex-shrink-0">
-									{user.name.charAt(0)}
-								</div>
-								<div>
-									<div class="font-bold text-quran-dark">{user.name}</div>
-									<div class="text-[11px] text-quran-warm font-mono">{user.phone || user.email}</div>
-								</div>
-							</div>
-						</td>
-
-						<td class="p-4">
-							<span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase {user.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-quran-sand text-quran-chocolate border border-quran-border'}">
-								{user.role}
-							</span>
-						</td>
-
-						<td class="p-4">
-							{#if user.is_active}
-								<span class="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
-									<CheckCircle class="w-3.5 h-3.5" /> Aktif
-								</span>
-							{:else}
-								<span class="inline-flex items-center gap-1 text-red-600 font-semibold text-[11px]">
-									<XCircle class="w-3.5 h-3.5" /> Dinonaktifkan
-								</span>
-							{/if}
-						</td>
-
-						<td class="p-4">
-							<div class="flex items-center gap-3">
-								<span class="flex items-center gap-1 text-quran-dark font-medium">
-									<BookOpen class="w-3.5 h-3.5 text-quran-primary" /> {user.ayahs_read} ayat
-								</span>
-								<span class="flex items-center gap-1 text-orange-600 font-medium">
-									<Flame class="w-3.5 h-3.5" /> {user.streak} hari
-								</span>
-							</div>
-						</td>
-
-						<td class="p-4 text-quran-warm font-mono text-[11px]">
-							{user.created_at}
-						</td>
-
-						<td class="p-4 text-right">
-							<div class="flex items-center justify-end gap-1.5">
-								<button 
-									on:click={() => openResetPassword(user)}
-									class="p-1.5 rounded-lg text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/70 transition shadow-xs"
-									title="Ubah / Reset Kata Sandi"
-								>
-									<KeyRound class="w-4 h-4 text-amber-700" />
-								</button>
-
-								<button 
-									on:click={() => toggleRole(user.id)}
-									class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition {user.role === 'admin' ? 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100' : 'bg-quran-sand text-quran-dark border border-quran-border hover:bg-quran-beige'}"
-									title="Ubah Role"
-								>
-									{user.role === 'admin' ? 'Role: Admin' : 'Role: User'}
-								</button>
-
-								<button 
-									on:click={() => toggleActive(user.id)}
-									class="p-1.5 rounded-lg text-xs font-semibold transition {user.is_active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'}"
-									title={user.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
-								>
-									{#if user.is_active}
-										<UserX class="w-4 h-4" />
-									{:else}
-										<UserCheck class="w-4 h-4" />
-									{/if}
-								</button>
-
-								<button 
-									on:click={() => handleDelete(user.id, user.name)}
-									class="p-1.5 rounded-lg text-xs font-semibold text-quran-warm hover:text-red-600 hover:bg-red-50 transition"
-									title="Hapus Pengguna"
-								>
-									<Trash2 class="w-4 h-4" />
-								</button>
-							</div>
+				{#if isLoading}
+					<tr>
+						<td colspan="6" class="p-8 text-center text-quran-warm">
+							<div class="w-6 h-6 border-2 border-quran-gold border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+							<span>Memuat data pengguna dari database...</span>
 						</td>
 					</tr>
-				{/each}
+				{:else if filteredUsers.length === 0}
+					<tr>
+						<td colspan="6" class="p-8 text-center text-quran-warm">
+							<p class="font-bold text-sm text-quran-dark">Belum ada data pengguna</p>
+							<p class="text-xs text-quran-warm mt-1">Pengguna yang mendaftar melalui aplikasi akan muncul di sini secara otomatis.</p>
+						</td>
+					</tr>
+				{:else}
+					{#each filteredUsers as user (user.id)}
+						<tr class="hover:bg-quran-sand/30 transition">
+							<td class="p-4">
+								<div class="flex items-center gap-3">
+									<div class="w-9 h-9 rounded-xl bg-gradient-luxury text-quran-gold font-bold flex items-center justify-center flex-shrink-0">
+										{user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+									</div>
+									<div>
+										<div class="font-bold text-quran-dark">{user.name}</div>
+										<div class="text-[11px] text-quran-warm font-mono">{user.email || user.phone}</div>
+									</div>
+								</div>
+							</td>
+
+							<td class="p-4">
+								<span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase {user.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-quran-sand text-quran-chocolate border border-quran-border'}">
+									{user.role}
+								</span>
+							</td>
+
+							<td class="p-4">
+								{#if user.is_active}
+									<span class="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
+										<CheckCircle class="w-3.5 h-3.5" /> Aktif
+									</span>
+								{:else}
+									<span class="inline-flex items-center gap-1 text-red-600 font-semibold text-[11px]">
+										<XCircle class="w-3.5 h-3.5" /> Dinonaktifkan
+									</span>
+								{/if}
+							</td>
+
+							<td class="p-4">
+								<div class="flex items-center gap-3">
+									<span class="flex items-center gap-1 text-quran-dark font-medium">
+										<BookOpen class="w-3.5 h-3.5 text-quran-primary" /> {user.ayahs_read} ayat
+									</span>
+									<span class="flex items-center gap-1 text-orange-600 font-medium">
+										<Flame class="w-3.5 h-3.5" /> {user.streak} juz
+									</span>
+								</div>
+							</td>
+
+							<td class="p-4 text-quran-warm font-mono text-[11px]">
+								{user.created_at}
+							</td>
+
+							<td class="p-4 text-right">
+								<div class="flex items-center justify-end gap-1.5">
+									<button 
+										on:click={() => openResetPassword(user)}
+										class="p-1.5 rounded-lg text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/70 transition shadow-xs"
+										title="Ubah / Reset Kata Sandi"
+									>
+										<KeyRound class="w-4 h-4 text-amber-700" />
+									</button>
+
+									<button 
+										on:click={() => toggleRole(user.id)}
+										class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition {user.role === 'admin' ? 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100' : 'bg-quran-sand text-quran-dark border border-quran-border hover:bg-quran-beige'}"
+										title="Ubah Role"
+									>
+										{user.role === 'admin' ? 'Role: Admin' : 'Role: User'}
+									</button>
+
+									<button 
+										on:click={() => toggleActive(user.id)}
+										class="p-1.5 rounded-lg text-xs font-semibold transition {user.is_active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'}"
+										title={user.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
+									>
+										{#if user.is_active}
+											<UserX class="w-4 h-4" />
+										{:else}
+											<UserCheck class="w-4 h-4" />
+										{/if}
+									</button>
+
+									<button 
+										on:click={() => handleDelete(user.id, user.name)}
+										class="p-1.5 rounded-lg text-xs font-semibold text-quran-warm hover:text-red-600 hover:bg-red-50 transition"
+										title="Hapus Pengguna"
+									>
+										<Trash2 class="w-4 h-4" />
+									</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				{/if}
 			</tbody>
 		</table>
 	</div>
@@ -324,13 +345,13 @@
 				</div>
 
 				<div>
-					<label for="new-user-phone" class="block text-xs font-bold text-quran-chocolate mb-1">Nomor WhatsApp / HP</label>
+					<label for="new-user-email" class="block text-xs font-bold text-quran-chocolate mb-1">Email Pengguna</label>
 					<input 
-						id="new-user-phone"
-						type="tel" 
-						placeholder="081234567890" 
-						bind:value={newPhone}
-						class="w-full px-3.5 py-2 rounded-xl bg-quran-sand border border-quran-border text-xs text-quran-dark focus:border-quran-gold focus:outline-none font-mono"
+						id="new-user-email"
+						type="email" 
+						placeholder="pengguna@email.com" 
+						bind:value={newEmail}
+						class="w-full px-3.5 py-2 rounded-xl bg-quran-sand border border-quran-border text-xs text-quran-dark focus:border-quran-gold focus:outline-none"
 					/>
 				</div>
 

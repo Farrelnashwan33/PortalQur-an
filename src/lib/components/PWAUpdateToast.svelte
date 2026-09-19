@@ -30,14 +30,14 @@
 				<div class="flex-1 min-w-0 pr-6">
 					<div class="flex items-center gap-2">
 						<h4 class="font-bold text-sm sm:text-base text-quran-dark tracking-tight">
-							Pembaruan Tersedia!
+							Update tersedia
 						</h4>
 						<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-quran-gold/20 text-quran-goldDark uppercase tracking-wider font-mono">
 							UPDATE
 						</span>
 					</div>
 					<p class="text-xs text-quran-warm mt-0.5 leading-relaxed">
-						Versi terbaru Portal Qur'an telah siap dengan pembaruan tampilan dan performa.
+						Versi terbaru Portal Quran sudah tersedia.
 					</p>
 
 					<!-- Action Buttons -->
@@ -48,7 +48,7 @@
 							class="px-4 py-2 rounded-xl bg-gradient-luxury text-quran-gold hover:brightness-110 active:scale-[0.97] font-bold text-xs shadow-gold flex items-center gap-1.5 transition cursor-pointer border border-quran-gold/50"
 						>
 							<RefreshCw class="w-3.5 h-3.5 {$isUpdating ? 'animate-spin' : ''}" />
-							<span>{$isUpdating ? 'Memperbarui...' : 'Perbarui Sekarang'}</span>
+							<span>{$isUpdating ? 'Memperbarui...' : 'Update Sekarang'}</span>
 						</button>
 
 						<button

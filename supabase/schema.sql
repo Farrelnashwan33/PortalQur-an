@@ -257,13 +257,20 @@ BEGIN
     INSERT INTO public.profiles (id, full_name, phone, email, avatar_url, role)
     VALUES (
         NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'phone', 'Hamba Allah'),
-        COALESCE(NEW.phone, NEW.raw_user_meta_data->>'phone', '08' || substr(replace(NEW.id::text, '-', ''), 1, 10)),
+        COALESCE(
+            NEW.raw_user_meta_data->>'full_name',
+            split_part(NEW.email, '@', 1),
+            'Hamba Allah'
+        ),
+        COALESCE(NEW.phone, NEW.raw_user_meta_data->>'phone', null),
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'avatar_url', null),
         'customer' -- Always default to customer, never allow client-set admin
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+        updated_at = NOW();
 
     -- Also create initial reading progress entry
     INSERT INTO public.reading_progress (user_id, surah_number, ayah_number, juz_number)

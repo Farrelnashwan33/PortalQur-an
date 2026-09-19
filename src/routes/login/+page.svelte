@@ -7,7 +7,7 @@
 		Eye, 
 		EyeOff, 
 		Lock, 
-		Phone, 
+		Mail, 
 		User, 
 		ArrowRight, 
 		CheckCircle2, 
@@ -15,7 +15,6 @@
 		ShieldCheck, 
 		AlertCircle 
 	} from 'lucide-svelte';
-	import ForgotPasswordModal from '$lib/components/ForgotPasswordModal.svelte';
 
 	export let isRegisterMode = false;
 
@@ -27,16 +26,15 @@
 
 	let showPassword = false;
 	let showConfirmPassword = false;
-	let isForgotPasswordOpen = false;
 
-	// Login form fields
-	let loginPhone = '081234567890';
-	let loginPassword = 'password123';
+	// Login form fields (empty, no hardcoded dummy data)
+	let loginEmail = '';
+	let loginPassword = '';
 	let rememberMe = true;
 
-	// Register form fields
+	// Register form fields (empty, user creates own account)
 	let regFullName = '';
-	let regPhone = '';
+	let regEmail = '';
 	let regPassword = '';
 	let regConfirmPassword = '';
 	let agreeTerms = false;
@@ -48,18 +46,28 @@
 
 	async function handleLogin() {
 		errorMessage = '';
+		successMessage = '';
+
+		if (!loginEmail || !loginPassword) {
+			errorMessage = 'Harap isi email dan kata sandi Anda.';
+			return;
+		}
+
 		isLoading = true;
 
 		try {
-			const res = await authStore.login(loginPhone, loginPassword);
+			const res = await authStore.login(loginEmail, loginPassword);
 			if (res.success) {
-				if (res.role === 'admin') {
-					goto('/admin');
-				} else {
-					goto('/quran');
-				}
+				successMessage = 'Berhasil masuk! Membuka Al-Qur\'an...';
+				setTimeout(() => {
+					if (res.role === 'admin') {
+						goto('/admin');
+					} else {
+						goto('/quran');
+					}
+				}, 600);
 			} else {
-				errorMessage = res.error || 'Gagal masuk. Periksa nomor HP dan kata sandi.';
+				errorMessage = res.error || 'Gagal masuk. Periksa email dan kata sandi.';
 			}
 		} catch (err: any) {
 			errorMessage = err.message || 'Terjadi kesalahan sistem.';
@@ -70,10 +78,23 @@
 
 	async function handleRegister() {
 		errorMessage = '';
+		successMessage = '';
+
+		if (!regFullName || !regEmail || !regPassword || !regConfirmPassword) {
+			errorMessage = 'Semua kolom pendaftaran wajib diisi.';
+			return;
+		}
+
+		if (regPassword.length < 6) {
+			errorMessage = 'Kata sandi minimal harus 6 karakter.';
+			return;
+		}
+
 		if (regPassword !== regConfirmPassword) {
 			errorMessage = 'Konfirmasi kata sandi tidak cocok.';
 			return;
 		}
+
 		if (!agreeTerms) {
 			errorMessage = 'Harap setujui syarat & ketentuan layanan.';
 			return;
@@ -81,12 +102,12 @@
 
 		isLoading = true;
 		try {
-			const res = await authStore.register(regFullName, regPhone, regPassword);
+			const res = await authStore.register(regFullName, regEmail, regPassword);
 			if (res.success) {
 				successMessage = 'Pendaftaran berhasil! Mengalihkan ke pembaca Al-Qur\'an...';
 				setTimeout(() => {
 					goto('/quran');
-				}, 1200);
+				}, 1000);
 			} else {
 				errorMessage = res.error || 'Gagal mendaftar. Silakan coba lagi.';
 			}
@@ -156,20 +177,20 @@
 					</div>
 
 					<form on:submit|preventDefault={handleLogin} class="space-y-4">
-						<!-- Nomor HP -->
+						<!-- Email -->
 						<div>
-							<label for="login-phone" class="block text-xs sm:text-sm font-bold text-quran-chocolate mb-1.5">
-								Nomor WhatsApp / HP
+							<label for="login-email" class="block text-xs sm:text-sm font-bold text-quran-chocolate mb-1.5">
+								Alamat Email
 							</label>
 							<div class="relative">
-								<Phone class="w-5 h-5 text-quran-warm absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+								<Mail class="w-5 h-5 text-quran-warm absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
 								<input 
-									id="login-phone"
-									type="tel" 
+									id="login-email"
+									type="email" 
 									required
-									placeholder="081234567890" 
-									bind:value={loginPhone}
-									class="w-full pl-11 pr-4 py-3.5 sm:py-4 rounded-2xl bg-quran-sand border border-quran-border text-sm sm:text-base text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none focus:ring-2 focus:ring-quran-gold/20 transition font-mono"
+									placeholder="nama@email.com" 
+									bind:value={loginEmail}
+									class="w-full pl-11 pr-4 py-3.5 sm:py-4 rounded-2xl bg-quran-sand border border-quran-border text-sm sm:text-base text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none focus:ring-2 focus:ring-quran-gold/20 transition"
 								/>
 							</div>
 						</div>
@@ -180,13 +201,6 @@
 								<label for="login-password" class="text-xs sm:text-sm font-bold text-quran-chocolate">
 									Kata Sandi
 								</label>
-								<button 
-									type="button" 
-									class="text-xs font-semibold text-quran-goldDark hover:text-quran-dark transition"
-									on:click={() => isForgotPasswordOpen = true}
-								>
-									Lupa kata sandi?
-								</button>
 							</div>
 							<div class="relative">
 								<Lock class="w-5 h-5 text-quran-warm absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -194,7 +208,7 @@
 									id="login-password"
 									type={showPassword ? 'text' : 'password'} 
 									required
-									placeholder="••••••••" 
+									placeholder="Masukkan kata sandi..." 
 									bind:value={loginPassword}
 									class="w-full pl-11 pr-12 py-3.5 sm:py-4 rounded-2xl bg-quran-sand border border-quran-border text-sm sm:text-base text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none focus:ring-2 focus:ring-quran-gold/20 transition"
 								/>
@@ -250,6 +264,7 @@
 								on:click={() => {
 									isRegisterMode = true;
 									errorMessage = '';
+									successMessage = '';
 								}}
 								class="font-bold text-quran-chocolate hover:text-quran-dark ml-1 underline transition cursor-pointer"
 							>
@@ -268,7 +283,7 @@
 							Daftar Akun Baru
 						</h1>
 						<p class="text-sm text-quran-warm mt-2 leading-relaxed">
-							Simpan bookmark, lacak statistik bacaan, dan kelola target tilawah.
+							Simpan bookmark, lacak statistik bacaan, dan kelola target tilawah pribadi.
 						</p>
 					</div>
 
@@ -284,27 +299,27 @@
 									id="reg-fullname"
 									type="text" 
 									required
-									placeholder="Fulan bin Fulan" 
+									placeholder="Nama lengkap Anda" 
 									bind:value={regFullName}
 									class="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-2xl bg-quran-sand border border-quran-border text-xs sm:text-sm text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none transition"
 								/>
 							</div>
 						</div>
 
-						<!-- Nomor HP -->
+						<!-- Email -->
 						<div>
-							<label for="reg-phone" class="block text-xs sm:text-sm font-bold text-quran-chocolate mb-1">
-								Nomor WhatsApp / HP
+							<label for="reg-email" class="block text-xs sm:text-sm font-bold text-quran-chocolate mb-1">
+								Alamat Email
 							</label>
 							<div class="relative">
-								<Phone class="w-5 h-5 text-quran-warm absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+								<Mail class="w-5 h-5 text-quran-warm absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
 								<input 
-									id="reg-phone"
-									type="tel" 
+									id="reg-email"
+									type="email" 
 									required
-									placeholder="081234567890" 
-									bind:value={regPhone}
-									class="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-2xl bg-quran-sand border border-quran-border text-xs sm:text-sm text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none transition font-mono"
+									placeholder="nama@email.com" 
+									bind:value={regEmail}
+									class="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-2xl bg-quran-sand border border-quran-border text-xs sm:text-sm text-quran-dark font-medium focus:border-quran-gold focus:bg-white focus:outline-none transition"
 								/>
 							</div>
 						</div>
@@ -406,6 +421,7 @@
 								on:click={() => {
 									isRegisterMode = false;
 									errorMessage = '';
+									successMessage = '';
 								}}
 								class="font-bold text-quran-chocolate hover:text-quran-dark ml-1 underline transition cursor-pointer"
 							>
@@ -472,13 +488,9 @@
 		<div class="w-full max-w-md mx-auto lg:mx-0 pt-4 pb-2 border-t border-quran-border/50 text-xs text-quran-warm flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
 			<span>© 2026 Portal Qur'an v3.3</span>
 			<div class="flex items-center gap-4">
-				<a href="/admin/login" class="text-xs font-semibold text-stone-500 hover:text-amber-800 transition flex items-center gap-1">
-					<Lock class="w-3.5 h-3.5 text-stone-400" />
-					<span>Admin Portal</span>
-				</a>
 				<span class="flex items-center gap-1.5 text-quran-chocolate font-medium">
 					<ShieldCheck class="w-4 h-4 text-quran-gold" />
-					<span>Supabase Auth</span>
+					<span>Supabase Security</span>
 				</span>
 			</div>
 		</div>
@@ -562,7 +574,7 @@
 		<div class="relative z-10 grid grid-cols-3 gap-3 pt-6 border-t border-white/10 text-center">
 			<div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
 				<div class="text-xs font-bold text-quran-gold">114 Surah</div>
-				<div class="text-[10px] text-quran-cream/80">Tafsir Kemenag</div>
+				<div class="text-[10px] text-quran-cream/80">Tafsir Ibnu Katsir</div>
 			</div>
 			<div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
 				<div class="text-xs font-bold text-quran-gold">Audio Qari</div>
@@ -577,15 +589,3 @@
 	</div>
 
 </div>
-
-<!-- WhatsApp Forgot Password Modal -->
-<ForgotPasswordModal 
-	isOpen={isForgotPasswordOpen}
-	initialPhone={loginPhone}
-	onClose={() => isForgotPasswordOpen = false}
-	onSuccess={(newPhone, newPass) => {
-		loginPhone = newPhone;
-		loginPassword = newPass;
-		handleLogin();
-	}}
-/>

@@ -400,7 +400,7 @@
 						<button 
 							on:click={() => openTafsir(ayah)}
 							class="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-quran-warm hover:text-quran-dark hover:bg-quran-sand transition"
-							title="Buka Tafsir Ringkas Kemenag"
+							title="Buka Tafsir Ibnu Katsir"
 						>
 							<FileText class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
 						</button>
@@ -525,12 +525,15 @@
 
 						<!-- Inline Tafsir Box -->
 						<div class="p-4 rounded-2xl bg-quran-sand/40 border border-quran-border/60 text-xs text-quran-dark space-y-1.5">
-							<div class="flex items-center gap-1.5 font-bold text-quran-chocolate">
-								<FileText class="w-3.5 h-3.5 text-quran-gold" />
-								<span>Tafsir Ringkas Kemenag RI</span>
+							<div class="flex items-center justify-between font-bold text-quran-chocolate">
+								<div class="flex items-center gap-1.5">
+									<FileText class="w-3.5 h-3.5 text-quran-gold" />
+									<span>TAFSIR IBNU KATSIR</span>
+								</div>
+								<span class="text-[10px] font-semibold text-quran-warm">Sumber: Tafsir Ibnu Katsir</span>
 							</div>
-							<p class="text-quran-warm leading-relaxed">
-								{ayah.tafsir_ringkas || 'Memuat uraian makna dan hikmah ayat suci Al-Qur\'an untuk tadabbur mendalam.'}
+							<p class="text-quran-warm leading-relaxed whitespace-pre-line">
+								{ayah.tafsir_ringkas || 'Memuat uraian makna dan hikmah ayat suci Al-Qur\'an berdasarkan Tafsir Ibnu Katsir.'}
 							</p>
 						</div>
 					</div>

@@ -66,8 +66,9 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 
-	// Bypass external APIs, audio streaming, Supabase, and dynamic Quran APIs to keep cache clean & fast
+	// Bypass external APIs, audio streaming, Supabase, version.json, and dynamic Quran APIs to keep cache clean & fast
 	if (
+		url.pathname === '/version.json' ||
 		url.pathname.endsWith('.mp3') ||
 		url.hostname.includes('supabase.co') ||
 		url.hostname.includes('everyayah.com') ||

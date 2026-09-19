@@ -157,36 +157,83 @@ export const pwaStore = {
 	},
 
 	checkForUpdate: async () => {
-		if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+		if (typeof window === 'undefined') return;
 
-		const currentState = get(state);
-		const reg = currentState.registration;
-
-		if (reg) {
-			try {
-				await reg.update();
-			} catch (e) {
-				console.debug('Service worker update check:', e);
+		// 1. Service worker update check
+		if ('serviceWorker' in navigator) {
+			const currentState = get(state);
+			const reg = currentState.registration;
+			if (reg) {
+				try {
+					await reg.update();
+				} catch (e) {
+					console.debug('Service worker update check:', e);
+				}
 			}
+		}
+
+		// 2. Fetch /version.json with timestamp to detect Vercel deployment updates
+		try {
+			const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' });
+			if (res.ok) {
+				const data = await res.json();
+				const deployedVersion = data.version || data.buildTime;
+				const currentVersion = localStorage.getItem('pq_app_version') || '3.3.0';
+				const dismissedVersion = localStorage.getItem('pq_dismissed_version');
+
+				if (deployedVersion && deployedVersion !== currentVersion) {
+					if (dismissedVersion !== deployedVersion) {
+						state.update((s) => ({ ...s, isUpdateAvailable: true }));
+						showUpdateToast.set(true);
+					}
+				}
+			}
+		} catch (e) {
+			// Offline or network error
 		}
 	},
 
-	applyUpdate: () => {
-		const currentState = get(state);
-		const reg = currentState.registration;
+	applyUpdate: async () => {
+		if (typeof window === 'undefined') return;
 
 		state.update((s) => ({ ...s, isUpdating: true }));
+
+		// Sync latest version in localStorage
+		try {
+			const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' });
+			if (res.ok) {
+				const data = await res.json();
+				if (data.version) {
+					localStorage.setItem('pq_app_version', data.version);
+				}
+			}
+		} catch {}
+
+		const currentState = get(state);
+		const reg = currentState.registration;
 
 		if (reg && reg.waiting) {
 			// Signal the waiting service worker to skip waiting and activate
 			reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 		} else {
-			// Force reload if no waiting worker detected
-			window.location.reload();
+			// Reload cleanly
+			setTimeout(() => {
+				window.location.reload();
+			}, 300);
 		}
 	},
 
 	dismissUpdateToast: () => {
+		if (typeof window !== 'undefined') {
+			fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' })
+				.then(r => r.json())
+				.then(data => {
+					if (data.version) {
+						localStorage.setItem('pq_dismissed_version', data.version);
+					}
+				})
+				.catch(() => {});
+		}
 		showUpdateToast.set(false);
 	},
 

@@ -28,7 +28,7 @@
 	const modes: { id: ReadingMode; label: string; desc: string; icon: any }[] = [
 		{ id: 'terjemahan', label: 'Mode Terjemahan', desc: 'Teks Arab lengkap beserta terjemahan Bahasa Indonesia', icon: Languages },
 		{ id: 'mushaf', label: 'Mode Mushaf', desc: 'Fokus teks Arab murni seperti lembaran mushaf Madinah', icon: BookOpen },
-		{ id: 'tafsir', label: 'Mode Tafsir', desc: 'Teks Arab, terjemahan, dan uraian tafsir ringkas Kemenag', icon: FileText },
+		{ id: 'tafsir', label: 'Mode Tafsir', desc: 'Teks Arab, terjemahan, dan uraian Tafsir Ibnu Katsir', icon: FileText },
 		{ id: 'per-kata', label: 'Mode Per Kata', desc: 'Menampilkan arti setiap mufradat/kata tepat di bawah lafazh Arab', icon: Layers },
 		{ id: 'audio', label: 'Mode Audio Karaoke', desc: 'Tampilan tilawah interaktif dengan sorotan ayat yang sedang dilantunkan', icon: Headphones },
 		{ id: 'fokus', label: 'Mode Fokus Membaca', desc: 'Tampilan bersih bebas distraksi untuk tadabbur mendalam', icon: Eye }
@@ -161,7 +161,7 @@
 						on:change={(e) => readerStore.setArabicFontFamily(e.currentTarget.value as ArabicFontFamily)}
 						class="w-full px-3 py-2 rounded-xl bg-white border border-quran-border text-xs text-quran-dark font-medium focus:border-quran-gold focus:outline-none"
 					>
-						<option value="Scheherazade New">Scheherazade New (Mushaf Standar Kemenag)</option>
+						<option value="Scheherazade New">Scheherazade New (Mushaf Standar Indonesia)</option>
 						<option value="Amiri">Amiri (Klasik Naskh Modern)</option>
 					</select>
 				</div>

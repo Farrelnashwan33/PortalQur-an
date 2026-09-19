@@ -39,6 +39,21 @@ function createAuthStore() {
 								localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
 							}
 							return;
+						} else {
+							// If profile record doesn't exist yet, construct from user metadata
+							const fallbackProfile: UserProfile = {
+								id: session.user.id,
+								full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
+								email: session.user.email,
+								role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
+								is_active: true,
+								created_at: new Date().toISOString()
+							};
+							set(fallbackProfile);
+							if (typeof window !== 'undefined') {
+								localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackProfile));
+							}
+							return;
 						}
 					}
 				} catch (err) {
@@ -60,38 +75,25 @@ function createAuthStore() {
 				}
 			}
 		},
-		login: async (phoneOrEmail: string, pass: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
-			if (!phoneOrEmail || !pass) {
-				return { success: false, error: 'Harap isi nomor HP dan kata sandi.' };
+
+		login: async (email: string, pass: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+			if (!email || !pass) {
+				return { success: false, error: 'Harap masukkan email dan kata sandi.' };
 			}
 
-			const identifier = phoneOrEmail.trim();
-			const isPhone = /^(\+62|62|08)[0-9]{8,13}$/.test(identifier.replace(/[\s-]/g, '')) || /^[0-9]{10,14}$/.test(identifier.replace(/[\s-]/g, ''));
-			const cleanPhone = isPhone ? identifier.replace(/[\s-]/g, '') : identifier;
-			const syntheticEmail = isPhone ? `${cleanPhone}@portalquran.id` : identifier;
+			const cleanEmail = email.trim().toLowerCase();
+			if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+				return { success: false, error: 'Format email tidak valid.' };
+			}
 
-			// 1. Supabase Auth if configured
 			if (isSupabaseConfigured()) {
-				// Try with synthetic email / standard email for Supabase Auth compatibility
-				let { data, error } = await supabase.auth.signInWithPassword({
-					email: syntheticEmail,
+				const { data, error } = await supabase.auth.signInWithPassword({
+					email: cleanEmail,
 					password: pass
 				});
 
-				if (error && isPhone) {
-					// Also attempt with direct phone if phone provider enabled in Supabase
-					const phoneResult = await supabase.auth.signInWithPassword({
-						phone: cleanPhone,
-						password: pass
-					});
-					if (!phoneResult.error && phoneResult.data) {
-						data = phoneResult.data;
-						error = null;
-					}
-				}
-
 				if (error) {
-					return { success: false, error: error.message || 'Nomor HP atau kata sandi salah.' };
+					return { success: false, error: error.message || 'Email atau kata sandi salah.' };
 				}
 
 				if (data?.user) {
@@ -103,9 +105,8 @@ function createAuthStore() {
 
 					const finalProfile: UserProfile = profile || {
 						id: data.user.id,
-						full_name: data.user.user_metadata?.full_name || cleanPhone,
-						phone: cleanPhone,
-						email: data.user.email,
+						full_name: data.user.user_metadata?.full_name || cleanEmail.split('@')[0],
+						email: data.user.email || cleanEmail,
 						role: data.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
 						is_active: true,
 						created_at: new Date().toISOString()
@@ -117,71 +118,50 @@ function createAuthStore() {
 					}
 					return { success: true, role: finalProfile.role };
 				}
-			}
-
-			// 2. Demo / Offline Auth Handler (Admin vs Customer)
-			if (identifier.toLowerCase().includes('admin') || identifier === '081299998888' || identifier === '081288889999') {
-				const adminProfile: UserProfile = {
-					id: 'admin-super-001',
-					full_name: 'Administrator Portal Qur\'an',
-					phone: isPhone ? cleanPhone : '081299998888',
-					email: 'admin@portalquran.id',
-					role: 'admin',
+			} else {
+				// Local fallback if Supabase credentials not configured in local environment
+				const localProfile: UserProfile = {
+					id: 'cust-' + Math.random().toString(36).substring(2, 9),
+					full_name: cleanEmail.split('@')[0],
+					email: cleanEmail,
+					role: 'customer',
 					is_active: true,
+					reading_target_juz: 30,
+					daily_target_ayahs: 10,
 					created_at: new Date().toISOString()
 				};
-				set(adminProfile);
+				set(localProfile);
 				if (typeof window !== 'undefined') {
-					localStorage.setItem(STORAGE_KEY, JSON.stringify(adminProfile));
+					localStorage.setItem(STORAGE_KEY, JSON.stringify(localProfile));
 				}
-				return { success: true, role: 'admin' };
+				return { success: true, role: 'customer' };
 			}
 
-			// Customer offline / local fallback login
-			const customerProfile: UserProfile = {
-				id: 'cust-' + Math.random().toString(36).substring(2, 9),
-				full_name: 'Sahabat Qur\'an (' + cleanPhone.slice(-4) + ')',
-				phone: cleanPhone,
-				email: `${cleanPhone}@portalquran.id`,
-				role: 'customer',
-				is_active: true,
-				reading_target_juz: 30,
-				daily_target_ayahs: 10,
-				created_at: new Date().toISOString()
-			};
-
-			set(customerProfile);
-			if (typeof window !== 'undefined') {
-				localStorage.setItem(STORAGE_KEY, JSON.stringify(customerProfile));
-			}
-			return { success: true, role: 'customer' };
+			return { success: false, error: 'Gagal melakukan autentikasi.' };
 		},
-		register: async (fullName: string, phone: string, pass: string): Promise<{ success: boolean; error?: string }> => {
-			if (!fullName || !phone || !pass) {
+
+		register: async (fullName: string, email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+			if (!fullName || !email || !pass) {
 				return { success: false, error: 'Semua kolom wajib diisi.' };
 			}
 
-			const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-			if (cleanPhone.length < 9) {
-				return { success: false, error: 'Nomor HP tidak valid (minimal 9 digit).' };
+			const cleanEmail = email.trim().toLowerCase();
+			if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+				return { success: false, error: 'Format email tidak valid.' };
 			}
 
 			if (pass.length < 6) {
 				return { success: false, error: 'Kata sandi minimal 6 karakter.' };
 			}
 
-			const syntheticEmail = `${cleanPhone}@portalquran.id`;
-
-			// 1. Supabase Auth Registration
 			if (isSupabaseConfigured()) {
 				const { data, error } = await supabase.auth.signUp({
-					email: syntheticEmail,
+					email: cleanEmail,
 					password: pass,
 					options: {
 						data: {
 							full_name: fullName.trim(),
-							phone: cleanPhone,
-							role: 'customer' // Strict security: always customer from register
+							role: 'customer' // Always customer from public register
 						}
 					}
 				});
@@ -191,13 +171,11 @@ function createAuthStore() {
 				}
 
 				if (data.user) {
-					// Insert/ensure profile row in public.profiles table
 					try {
 						await supabase.from('profiles').upsert({
 							id: data.user.id,
 							full_name: fullName.trim(),
-							phone: cleanPhone,
-							email: syntheticEmail,
+							email: cleanEmail,
 							role: 'customer',
 							is_active: true,
 							created_at: new Date().toISOString()
@@ -209,8 +187,7 @@ function createAuthStore() {
 					const newProfile: UserProfile = {
 						id: data.user.id,
 						full_name: fullName.trim(),
-						phone: cleanPhone,
-						email: syntheticEmail,
+						email: cleanEmail,
 						role: 'customer',
 						is_active: true,
 						created_at: new Date().toISOString()
@@ -221,27 +198,28 @@ function createAuthStore() {
 					}
 					return { success: true };
 				}
+			} else {
+				// Local fallback if Supabase not configured
+				const newProfile: UserProfile = {
+					id: 'cust-' + Math.random().toString(36).substring(2, 9),
+					full_name: fullName.trim(),
+					email: cleanEmail,
+					role: 'customer',
+					is_active: true,
+					reading_target_juz: 30,
+					daily_target_ayahs: 10,
+					created_at: new Date().toISOString()
+				};
+				set(newProfile);
+				if (typeof window !== 'undefined') {
+					localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
+				}
+				return { success: true };
 			}
 
-			// 2. Local registration fallback
-			const newProfile: UserProfile = {
-				id: 'cust-' + Math.random().toString(36).substring(2, 9),
-				full_name: fullName.trim(),
-				phone: cleanPhone,
-				email: syntheticEmail,
-				role: 'customer',
-				is_active: true,
-				reading_target_juz: 30,
-				daily_target_ayahs: 10,
-				created_at: new Date().toISOString()
-			};
-
-			set(newProfile);
-			if (typeof window !== 'undefined') {
-				localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
-			}
-			return { success: true };
+			return { success: false, error: 'Pendaftaran gagal.' };
 		},
+
 		updateProfile: async (updates: Partial<UserProfile>) => {
 			update((current) => {
 				if (!current) return null;
@@ -263,74 +241,78 @@ function createAuthStore() {
 				}
 			}
 		},
-		loginAdmin: async (adminKeyOrPass: string, adminEmail: string = 'admin@portalquran.id'): Promise<{ success: boolean; error?: string }> => {
-			if (!adminKeyOrPass) {
-				return { success: false, error: 'Harap masukkan PIN / Password Admin.' };
+
+		loginAdmin: async (adminEmail: string, adminPass: string): Promise<{ success: boolean; error?: string }> => {
+			if (!adminEmail || !adminPass) {
+				return { success: false, error: 'Harap masukkan email dan kata sandi Admin.' };
 			}
 
-			// 1. Supabase Auth if configured
+			const cleanEmail = adminEmail.trim().toLowerCase();
+
 			if (isSupabaseConfigured()) {
 				const { data, error } = await supabase.auth.signInWithPassword({
-					email: adminEmail,
-					password: adminKeyOrPass
+					email: cleanEmail,
+					password: adminPass
 				});
 
-				if (!error && data?.user) {
-					const { data: profile } = await supabase
-						.from('profiles')
-						.select('*')
-						.eq('id', data.user.id)
-						.single();
+				if (error || !data?.user) {
+					return { success: false, error: error?.message || 'Email atau kata sandi admin tidak valid.' };
+				}
 
-					if (profile?.role === 'admin' || data.user.user_metadata?.role === 'admin') {
-						const adminProf: UserProfile = {
-							id: data.user.id,
-							full_name: profile?.full_name || 'Administrator Portal Qur\'an',
-							phone: profile?.phone || '081299998888',
-							email: data.user.email || adminEmail,
-							role: 'admin',
-							is_active: true,
-							created_at: profile?.created_at || new Date().toISOString()
-						};
-						set(adminProf);
-						if (typeof window !== 'undefined') {
-							localStorage.setItem(STORAGE_KEY, JSON.stringify(adminProf));
-						}
-						return { success: true };
-					} else {
-						return { success: false, error: 'Akun ini tidak memiliki izin Administrator.' };
+				// Check role from profiles table
+				const { data: profile } = await supabase
+					.from('profiles')
+					.select('*')
+					.eq('id', data.user.id)
+					.single();
+
+				const userRole = profile?.role || data.user.user_metadata?.role;
+				if (userRole === 'admin') {
+					const adminProf: UserProfile = {
+						id: data.user.id,
+						full_name: profile?.full_name || 'Administrator Portal Qur\'an',
+						email: data.user.email || cleanEmail,
+						role: 'admin',
+						is_active: true,
+						created_at: profile?.created_at || new Date().toISOString()
+					};
+					set(adminProf);
+					if (typeof window !== 'undefined') {
+						localStorage.setItem(STORAGE_KEY, JSON.stringify(adminProf));
 					}
+					return { success: true };
+				} else {
+					// Sign out immediately if not admin
+					await supabase.auth.signOut();
+					set(null);
+					return { success: false, error: 'Akun ini tidak memiliki hak akses Administrator.' };
 				}
-			}
-
-			// 2. Secret Key / Master PIN check (admin123, 999888, pqadmin2026, or any >= 6 chars)
-			const validMasterKeys = ['admin123', 'admin', '999888', 'pqadmin2026', 'superadmin'];
-			if (validMasterKeys.includes(adminKeyOrPass.trim().toLowerCase()) || adminKeyOrPass.trim().length >= 6) {
-				const adminProf: UserProfile = {
-					id: 'admin-super-001',
-					full_name: 'Administrator Portal Qur\'an',
-					phone: '081299998888',
-					email: adminEmail.trim() || 'admin@portalquran.id',
-					role: 'admin',
-					is_active: true,
-					created_at: new Date().toISOString()
-				};
-				set(adminProf);
-				if (typeof window !== 'undefined') {
-					localStorage.setItem(STORAGE_KEY, JSON.stringify(adminProf));
+			} else {
+				// Local fallback when running offline development
+				if (cleanEmail.includes('admin')) {
+					const adminProf: UserProfile = {
+						id: 'admin-001',
+						full_name: 'Administrator Portal Qur\'an',
+						email: cleanEmail,
+						role: 'admin',
+						is_active: true,
+						created_at: new Date().toISOString()
+					};
+					set(adminProf);
+					if (typeof window !== 'undefined') {
+						localStorage.setItem(STORAGE_KEY, JSON.stringify(adminProf));
+					}
+					return { success: true };
 				}
-				return { success: true };
+				return { success: false, error: 'Akun ini tidak memiliki hak akses Administrator.' };
 			}
-
-			return { success: false, error: 'PIN atau Kunci Keamanan Admin tidak valid.' };
 		},
+
 		logout: async () => {
 			if (isSupabaseConfigured()) {
 				try {
 					await supabase.auth.signOut();
-				} catch {
-					// Ignore
-				}
+				} catch {}
 			}
 			set(null);
 			if (typeof window !== 'undefined') {
@@ -338,13 +320,12 @@ function createAuthStore() {
 			}
 			goto('/login');
 		},
+
 		logoutAdmin: async () => {
 			if (isSupabaseConfigured()) {
 				try {
 					await supabase.auth.signOut();
-				} catch {
-					// Ignore
-				}
+				} catch {}
 			}
 			set(null);
 			if (typeof window !== 'undefined') {
@@ -352,16 +333,14 @@ function createAuthStore() {
 			}
 			goto('/admin/login');
 		},
-		resetPassword: async (phone: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
-			if (!phone || !newPass) {
-				return { success: false, error: 'Nomor WhatsApp dan kata sandi baru wajib diisi.' };
+
+		resetPassword: async (email: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
+			if (!email || !newPass) {
+				return { success: false, error: 'Email dan kata sandi baru wajib diisi.' };
 			}
 			if (newPass.length < 6) {
 				return { success: false, error: 'Kata sandi minimal 6 karakter.' };
 			}
-
-			const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-			const syntheticEmail = `${cleanPhone}@portalquran.id`;
 
 			if (isSupabaseConfigured()) {
 				try {
@@ -369,15 +348,10 @@ function createAuthStore() {
 						password: newPass
 					});
 					if (!error) return { success: true };
+					return { success: false, error: error.message };
 				} catch (err: any) {
-					console.warn('Supabase reset pass note:', err);
+					return { success: false, error: err.message };
 				}
-			}
-
-			// Local reset persistence for demo / local profiles
-			if (typeof window !== 'undefined') {
-				const localKey = `pq_pwd_${cleanPhone}`;
-				localStorage.setItem(localKey, newPass);
 			}
 
 			return { success: true };
