@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { authStore } from '$lib/stores/auth';
+	import { authStore, authInitialized } from '$lib/stores/auth';
 	import { audioStore } from '$lib/stores/audio';
 	import { pwaStore } from '$lib/stores/pwa';
 	import Navbar from '$lib/components/Navbar.svelte';
@@ -18,12 +18,9 @@
 	let isMobileMenuOpen = false;
 	let isSearchOpen = false;
 	let isSettingsOpen = false;
-	let authInitialized = false;
 
 	onMount(() => {
-		authStore.init().then(() => {
-			authInitialized = true;
-		});
+		authStore.init();
 
 		// Initialize PWA store (handles installation prompt, update checking, SW lifecycle)
 		pwaStore.init();
@@ -44,29 +41,49 @@
 	$: isAdminRoute = $page.url.pathname.startsWith('/admin');
 
 	// Authentication & Role Route Guard
-	$: if (authInitialized && typeof window !== 'undefined') {
+	$: if ($authInitialized && typeof window !== 'undefined') {
 		const currentPath = $page.url.pathname;
+		const host = window.location.hostname.toLowerCase();
+		const isAdminHost = host.startsWith('admin.') || host.startsWith('admin-') || host.includes('admin-portalquran');
 
-		// 1. If not authenticated
-		if (!$authStore) {
-			if (currentPath.startsWith('/admin')) {
+		// 1. If accessing via dedicated Admin domain
+		if (isAdminHost) {
+			if (!$authStore) {
 				if (currentPath !== '/admin/login') {
 					goto('/admin/login');
 				}
-			} else if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/') {
-				goto('/login');
+			} else if ($authStore.role !== 'admin') {
+				// Customer cannot access admin domain
+				if (currentPath !== '/admin/login') {
+					goto('/admin/login');
+				}
+			} else if (currentPath === '/' || currentPath === '/login' || currentPath === '/admin/login') {
+				goto('/admin');
 			}
 		} 
-		// 2. If authenticated customer trying to access /admin
-		else if ($authStore.role === 'customer' && isAdminRoute) {
-			goto('/quran');
-		}
-		// 3. If authenticated and on auth pages -> redirect to appropriate home
-		else if (currentPath === '/login' || currentPath === '/register' || (currentPath === '/admin/login' && $authStore.role === 'admin')) {
-			if ($authStore.role === 'admin') {
-				goto('/admin');
-			} else {
+		// 2. If accessing via regular customer domain
+		else {
+			// If not authenticated
+			if (!$authStore) {
+				if (currentPath.startsWith('/admin')) {
+					if (currentPath !== '/admin/login') {
+						goto('/admin/login');
+					}
+				} else if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/') {
+					goto('/login');
+				}
+			} 
+			// If authenticated customer trying to access /admin
+			else if ($authStore.role === 'customer' && isAdminRoute) {
 				goto('/quran');
+			}
+			// If authenticated and on auth pages -> redirect to appropriate home
+			else if (currentPath === '/login' || currentPath === '/register' || (currentPath === '/admin/login' && $authStore.role === 'admin')) {
+				if ($authStore.role === 'admin') {
+					goto('/admin');
+				} else {
+					goto('/quran');
+				}
 			}
 		}
 	}

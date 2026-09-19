@@ -5,6 +5,9 @@ import { goto } from '$app/navigation';
 
 const STORAGE_KEY = 'pq_user_session_v33';
 
+export const authInitialized = writable<boolean>(false);
+export const sessionExpiredAlert = writable<string>('');
+
 function createAuthStore() {
 	let initialUser: UserProfile | null = null;
 	if (typeof window !== 'undefined') {
@@ -19,41 +22,96 @@ function createAuthStore() {
 	}
 
 	const { subscribe, set, update } = writable<UserProfile | null>(initialUser);
+	let authListenerInitialized = false;
 
 	return {
 		subscribe,
 		init: async () => {
 			if (isSupabaseConfigured()) {
 				try {
-					const { data: { session } } = await supabase.auth.getSession();
+					// 1. Listen for realtime Supabase auth state transitions
+					if (!authListenerInitialized) {
+						authListenerInitialized = true;
+						supabase.auth.onAuthStateChange(async (event, session) => {
+							if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+								if (session?.user) {
+									const { data: profile } = await supabase
+										.from('profiles')
+										.select('*')
+										.eq('id', session.user.id)
+										.maybeSingle();
+
+									const finalProfile: UserProfile = profile || {
+										id: session.user.id,
+										full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
+										email: session.user.email,
+										role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
+										is_active: true,
+										created_at: new Date().toISOString()
+									};
+
+									set(finalProfile);
+									if (typeof window !== 'undefined') {
+										localStorage.setItem(STORAGE_KEY, JSON.stringify(finalProfile));
+									}
+								}
+							} else if (event === 'SIGNED_OUT') {
+								set(null);
+								if (typeof window !== 'undefined') {
+									localStorage.removeItem(STORAGE_KEY);
+								}
+							} else if (event === 'USER_UPDATED') {
+								if (session?.user) {
+									const { data: profile } = await supabase
+										.from('profiles')
+										.select('*')
+										.eq('id', session.user.id)
+										.maybeSingle();
+									if (profile) {
+										set(profile as UserProfile);
+										if (typeof window !== 'undefined') {
+											localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+										}
+									}
+								}
+							}
+						});
+					}
+
+					// 2. Fetch current active session
+					const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+					
 					if (session?.user) {
 						const { data: profile } = await supabase
 							.from('profiles')
 							.select('*')
 							.eq('id', session.user.id)
-							.single();
+							.maybeSingle();
 
-						if (profile) {
-							set(profile as UserProfile);
+						const activeProfile: UserProfile = profile || {
+							id: session.user.id,
+							full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
+							email: session.user.email,
+							role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
+							is_active: true,
+							created_at: new Date().toISOString()
+						};
+
+						set(activeProfile);
+						if (typeof window !== 'undefined') {
+							localStorage.setItem(STORAGE_KEY, JSON.stringify(activeProfile));
+						}
+					} else {
+						// No active Supabase session
+						// If user was cached locally from an expired session, clear it safely
+						if (initialUser && isSupabaseConfigured()) {
+							set(null);
 							if (typeof window !== 'undefined') {
-								localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+								localStorage.removeItem(STORAGE_KEY);
 							}
-							return;
+							sessionExpiredAlert.set('Session Anda telah berakhir. Silakan login kembali.');
 						} else {
-							// If profile record doesn't exist yet, construct from user metadata
-							const fallbackProfile: UserProfile = {
-								id: session.user.id,
-								full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
-								email: session.user.email,
-								role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
-								is_active: true,
-								created_at: new Date().toISOString()
-							};
-							set(fallbackProfile);
-							if (typeof window !== 'undefined') {
-								localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackProfile));
-							}
-							return;
+							set(null);
 						}
 					}
 				} catch (err) {
@@ -61,22 +119,10 @@ function createAuthStore() {
 				}
 			}
 
-			// If no session exists in Supabase or localStorage, remain null (unauthenticated)
-			if (typeof window !== 'undefined') {
-				const stored = localStorage.getItem(STORAGE_KEY);
-				if (stored) {
-					try {
-						set(JSON.parse(stored));
-					} catch {
-						set(null);
-					}
-				} else {
-					set(null);
-				}
-			}
+			authInitialized.set(true);
 		},
 
-		login: async (email: string, pass: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+		login: async (email: string, pass: string, remember: boolean = true): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
 			if (!email || !pass) {
 				return { success: false, error: 'Harap masukkan email dan kata sandi.' };
 			}
@@ -101,7 +147,7 @@ function createAuthStore() {
 						.from('profiles')
 						.select('*')
 						.eq('id', data.user.id)
-						.single();
+						.maybeSingle();
 
 					const finalProfile: UserProfile = profile || {
 						id: data.user.id,
@@ -116,6 +162,7 @@ function createAuthStore() {
 					if (typeof window !== 'undefined') {
 						localStorage.setItem(STORAGE_KEY, JSON.stringify(finalProfile));
 					}
+					sessionExpiredAlert.set('');
 					return { success: true, role: finalProfile.role };
 				}
 			} else {
@@ -134,6 +181,7 @@ function createAuthStore() {
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(STORAGE_KEY, JSON.stringify(localProfile));
 				}
+				sessionExpiredAlert.set('');
 				return { success: true, role: 'customer' };
 			}
 
@@ -155,6 +203,7 @@ function createAuthStore() {
 			}
 
 			if (isSupabaseConfigured()) {
+				// 1. Sign up user with Supabase
 				const { data, error } = await supabase.auth.signUp({
 					email: cleanEmail,
 					password: pass,
@@ -170,10 +219,27 @@ function createAuthStore() {
 					return { success: false, error: error.message };
 				}
 
-				if (data.user) {
+				let activeUser = data?.user;
+
+				// 2. Guarantee immediate active session (auto-login)
+				if (!data?.session && activeUser) {
+					try {
+						const signInRes = await supabase.auth.signInWithPassword({
+							email: cleanEmail,
+							password: pass
+						});
+						if (signInRes.data?.user) {
+							activeUser = signInRes.data.user;
+						}
+					} catch (e) {
+						console.debug('Auto sign-in fallback check:', e);
+					}
+				}
+
+				if (activeUser) {
 					try {
 						await supabase.from('profiles').upsert({
-							id: data.user.id,
+							id: activeUser.id,
 							full_name: fullName.trim(),
 							email: cleanEmail,
 							role: 'customer',
@@ -185,17 +251,19 @@ function createAuthStore() {
 					}
 
 					const newProfile: UserProfile = {
-						id: data.user.id,
+						id: activeUser.id,
 						full_name: fullName.trim(),
 						email: cleanEmail,
 						role: 'customer',
 						is_active: true,
 						created_at: new Date().toISOString()
 					};
+
 					set(newProfile);
 					if (typeof window !== 'undefined') {
 						localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
 					}
+					sessionExpiredAlert.set('');
 					return { success: true };
 				}
 			} else {
@@ -214,6 +282,7 @@ function createAuthStore() {
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
 				}
+				sessionExpiredAlert.set('');
 				return { success: true };
 			}
 

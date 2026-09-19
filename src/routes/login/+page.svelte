@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authStore } from '$lib/stores/auth';
+	import { authStore, sessionExpiredAlert } from '$lib/stores/auth';
 	import { 
 		BookOpen, 
 		Eye, 
@@ -44,9 +44,15 @@
 	let errorMessage = '';
 	let successMessage = '';
 
+	// Reactive session expiry alert
+	$: if ($sessionExpiredAlert && !errorMessage) {
+		errorMessage = $sessionExpiredAlert;
+	}
+
 	async function handleLogin() {
 		errorMessage = '';
 		successMessage = '';
+		sessionExpiredAlert.set('');
 
 		if (!loginEmail || !loginPassword) {
 			errorMessage = 'Harap isi email dan kata sandi Anda.';
@@ -56,7 +62,7 @@
 		isLoading = true;
 
 		try {
-			const res = await authStore.login(loginEmail, loginPassword);
+			const res = await authStore.login(loginEmail, loginPassword, rememberMe);
 			if (res.success) {
 				successMessage = 'Berhasil masuk! Membuka Al-Qur\'an...';
 				setTimeout(() => {
@@ -65,7 +71,7 @@
 					} else {
 						goto('/quran');
 					}
-				}, 600);
+				}, 400);
 			} else {
 				errorMessage = res.error || 'Gagal masuk. Periksa email dan kata sandi.';
 			}

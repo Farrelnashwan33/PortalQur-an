@@ -28,6 +28,10 @@
 		}
 	});
 
+	$: if ($isAdmin) {
+		goto('/admin');
+	}
+
 	async function handleAdminLogin() {
 		errorMessage = '';
 		successMessage = '';
