@@ -8,10 +8,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 		hostname.startsWith('admin-') || 
 		hostname.includes('admin-portalquran');
 
-	// If accessing via admin subdomain or dedicated admin domain
+	// If accessing via dedicated admin domain
 	if (isAdminDomain) {
-		// If accessing root "/" or customer auth routes
-		if (pathname === '/' || pathname === '/login' || pathname === '/register') {
+		// If accessing any customer route or root on admin domain
+		if (!pathname.startsWith('/admin') && !pathname.startsWith('/_app') && !pathname.includes('.')) {
 			return new Response(null, {
 				status: 302,
 				headers: { location: '/admin/login' }

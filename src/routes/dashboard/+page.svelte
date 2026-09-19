@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { authStore } from '$lib/stores/auth';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { authStore, isAdmin } from '$lib/stores/auth';
 	import { progressStore } from '$lib/stores/progress';
 	import { audioStore } from '$lib/stores/audio';
 	import { agendaStore } from '$lib/stores/agenda';
@@ -19,6 +21,19 @@
 		TrendingUp,
 		Share2
 	} from 'lucide-svelte';
+
+	onMount(() => {
+		if (typeof window !== 'undefined') {
+			const host = window.location.hostname.toLowerCase();
+			if (host.startsWith('admin.') || host.startsWith('admin-') || host.includes('admin-portalquran')) {
+				if ($isAdmin) {
+					goto('/admin');
+				} else {
+					goto('/admin/login');
+				}
+			}
+		}
+	});
 
 	const progress = progressStore.progress;
 	const stats = progressStore.stats;

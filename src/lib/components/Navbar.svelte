@@ -172,7 +172,7 @@
 			<!-- Admin Badge Link (if role admin) -->
 			{#if $isAdmin}
 				<a 
-					href="/admin" 
+					href="https://admin-portalquran.vercel.app" 
 					class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-quran-dark text-quran-gold text-xs font-semibold border border-quran-gold/40 hover:shadow-gold transition"
 				>
 					<ShieldCheck class="w-3.5 h-3.5" />
@@ -254,7 +254,7 @@
 							</a>
 							{#if $isAdmin}
 								<a 
-									href="/admin" 
+									href="https://admin-portalquran.vercel.app" 
 									on:click={() => userDropdownOpen = false}
 									class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-quran-dark bg-amber-50/60 rounded-xl hover:bg-amber-100/60 transition"
 								>

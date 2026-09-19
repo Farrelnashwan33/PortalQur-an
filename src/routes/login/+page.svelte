@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authStore, sessionExpiredAlert } from '$lib/stores/auth';
+	import AdminLoginPage from '../admin/login/+page.svelte';
 	import { 
 		BookOpen, 
 		Eye, 
@@ -17,6 +19,18 @@
 	} from 'lucide-svelte';
 
 	export let isRegisterMode = false;
+
+	let isAdminHost = false;
+
+	onMount(() => {
+		if (typeof window !== 'undefined') {
+			const host = window.location.hostname.toLowerCase();
+			if (host.startsWith('admin.') || host.startsWith('admin-') || host.includes('admin-portalquran')) {
+				isAdminHost = true;
+				goto('/admin/login');
+			}
+		}
+	});
 
 	$: if ($page.url.pathname === '/register') {
 		isRegisterMode = true;
@@ -129,6 +143,9 @@
 	<title>{isRegisterMode ? 'Daftar Akun Baru' : 'Masuk ke Akun'} - Portal Qur'an v3.3</title>
 </svelte:head>
 
+{#if isAdminHost}
+	<AdminLoginPage />
+{:else}
 <div class="min-h-screen w-full bg-quran-cream flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden">
 	
 	<!-- LEFT PANEL / MAIN MOBILE FORM CONTAINER (Fills 100% height on mobile) -->
@@ -595,3 +612,4 @@
 	</div>
 
 </div>
+{/if}

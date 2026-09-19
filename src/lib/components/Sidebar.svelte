@@ -127,7 +127,7 @@
 						Panel Admin
 					</div>
 					<a
-						href="/admin"
+						href="https://admin-portalquran.vercel.app"
 						on:click={onCloseMobile}
 						class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100/70 border border-amber-300 hover:bg-amber-200/70 transition shadow-sm"
 					>
