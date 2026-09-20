@@ -135,7 +135,7 @@
 							on:click={() => { adminEmail = 'yadifarrel@gmail.com'; adminPassword = 'AdminQuran2026!'; }}
 							class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border border-amber-400/40 transition cursor-pointer"
 						>
-							⚡ Akun Farrel
+							⚡ Akun Yadi
 						</button>
 						<button 
 							type="button" 

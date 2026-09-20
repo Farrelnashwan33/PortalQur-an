@@ -330,7 +330,7 @@ function createAuthStore() {
 						if (adminPass === 'AdminQuran2026!' || adminPass === 'admin123' || adminPass.length >= 6) {
 							const adminProf: UserProfile = {
 								id: 'admin-master-001',
-								full_name: cleanEmail === 'yadifarrel@gmail.com' ? 'Farrel Administrator' : 'Administrator Portal Qur\'an',
+								full_name: cleanEmail === 'yadifarrel@gmail.com' ? 'Yadi' : 'Administrator Portal Qur\'an',
 								email: cleanEmail,
 								role: 'admin',
 								is_active: true,

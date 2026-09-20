@@ -63,8 +63,8 @@ function createUsersStore() {
 						// Ensure primary users exist if not returned by query
 						if (!mapped.some(u => u.email === 'yadifarrel@gmail.com')) {
 							mapped.push({
-								id: 'usr-farrel-01',
-								name: 'Farrel',
+								id: 'usr-yadi-01',
+								name: 'Yadi',
 								email: 'yadifarrel@gmail.com',
 								phone: '081234567890',
 								role: 'customer',
@@ -84,7 +84,7 @@ function createUsersStore() {
 				}
 			}
 
-			// Default list containing both Admin and Farrel (Customer)
+			// Default list containing both Admin and Yadi (Customer)
 			const defaultList: ManagedUser[] = [
 				{
 					id: 'admin-001',
@@ -98,8 +98,8 @@ function createUsersStore() {
 					created_at: new Date().toISOString().split('T')[0]
 				},
 				{
-					id: 'usr-farrel-01',
-					name: 'Farrel',
+					id: 'usr-yadi-01',
+					name: 'Yadi',
 					email: 'yadifarrel@gmail.com',
 					phone: '081234567891',
 					role: 'customer',
