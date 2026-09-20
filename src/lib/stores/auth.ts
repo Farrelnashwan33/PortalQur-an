@@ -15,6 +15,10 @@ function createAuthStore() {
 		if (stored) {
 			try {
 				initialUser = JSON.parse(stored);
+				if (initialUser && initialUser.email === 'yadifarrel@gmail.com') {
+					initialUser.full_name = 'Yadi';
+					localStorage.setItem(STORAGE_KEY, JSON.stringify(initialUser));
+				}
 			} catch {
 				initialUser = null;
 			}
@@ -41,9 +45,12 @@ function createAuthStore() {
 										.eq('id', session.user.id)
 										.maybeSingle();
 
-									const finalProfile: UserProfile = profile || {
+									const finalProfile: UserProfile = profile ? {
+										...profile,
+										full_name: profile.email === 'yadifarrel@gmail.com' ? 'Yadi' : (profile.full_name || 'Sahabat Qur\'an')
+									} : {
 										id: session.user.id,
-										full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
+										full_name: session.user.email === 'yadifarrel@gmail.com' ? 'Yadi' : (session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an'),
 										email: session.user.email,
 										role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
 										is_active: true,
@@ -68,9 +75,13 @@ function createAuthStore() {
 										.eq('id', session.user.id)
 										.maybeSingle();
 									if (profile) {
-										set(profile as UserProfile);
+										const updatedProf = {
+											...profile,
+											full_name: profile.email === 'yadifarrel@gmail.com' ? 'Yadi' : (profile.full_name || 'Sahabat Qur\'an')
+										};
+										set(updatedProf as UserProfile);
 										if (typeof window !== 'undefined') {
-											localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+											localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProf));
 										}
 									}
 								}
@@ -88,9 +99,12 @@ function createAuthStore() {
 							.eq('id', session.user.id)
 							.maybeSingle();
 
-						const activeProfile: UserProfile = profile || {
+						const activeProfile: UserProfile = profile ? {
+							...profile,
+							full_name: profile.email === 'yadifarrel@gmail.com' ? 'Yadi' : (profile.full_name || 'Sahabat Qur\'an')
+						} : {
 							id: session.user.id,
-							full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an',
+							full_name: session.user.email === 'yadifarrel@gmail.com' ? 'Yadi' : (session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sahabat Qur\'an'),
 							email: session.user.email,
 							role: session.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
 							is_active: true,
@@ -103,7 +117,6 @@ function createAuthStore() {
 						}
 					} else {
 						// No active Supabase session
-						// If user was cached locally from an expired session, clear it safely
 						if (initialUser && isSupabaseConfigured()) {
 							set(null);
 							if (typeof window !== 'undefined') {
@@ -149,9 +162,12 @@ function createAuthStore() {
 						.eq('id', data.user.id)
 						.maybeSingle();
 
-					const finalProfile: UserProfile = profile || {
+					const finalProfile: UserProfile = profile ? {
+						...profile,
+						full_name: profile.email === 'yadifarrel@gmail.com' ? 'Yadi' : (profile.full_name || cleanEmail.split('@')[0])
+					} : {
 						id: data.user.id,
-						full_name: data.user.user_metadata?.full_name || cleanEmail.split('@')[0],
+						full_name: cleanEmail === 'yadifarrel@gmail.com' ? 'Yadi' : (data.user.user_metadata?.full_name || cleanEmail.split('@')[0]),
 						email: data.user.email || cleanEmail,
 						role: data.user.user_metadata?.role === 'admin' ? 'admin' : 'customer',
 						is_active: true,
@@ -169,7 +185,7 @@ function createAuthStore() {
 				// Local fallback if Supabase credentials not configured in local environment
 				const localProfile: UserProfile = {
 					id: 'cust-' + Math.random().toString(36).substring(2, 9),
-					full_name: cleanEmail.split('@')[0],
+					full_name: cleanEmail === 'yadifarrel@gmail.com' ? 'Yadi' : cleanEmail.split('@')[0],
 					email: cleanEmail,
 					role: 'customer',
 					is_active: true,
