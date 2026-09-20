@@ -326,11 +326,11 @@ function createAuthStore() {
 
 				if (error || !data?.user) {
 					// Fallback to quick access admin demo if account not yet initialized in Supabase Auth
-					if (cleanEmail === 'admin@portalquran.id' || cleanEmail === 'admin@email.com' || cleanEmail.includes('admin')) {
+					if (cleanEmail === 'yadifarrel@gmail.com' || cleanEmail === 'admin@portalquran.id' || cleanEmail === 'admin@email.com' || cleanEmail.includes('admin')) {
 						if (adminPass === 'AdminQuran2026!' || adminPass === 'admin123' || adminPass.length >= 6) {
 							const adminProf: UserProfile = {
 								id: 'admin-master-001',
-								full_name: 'Administrator Portal Qur\'an',
+								full_name: cleanEmail === 'yadifarrel@gmail.com' ? 'Farrel Administrator' : 'Administrator Portal Qur\'an',
 								email: cleanEmail,
 								role: 'admin',
 								is_active: true,

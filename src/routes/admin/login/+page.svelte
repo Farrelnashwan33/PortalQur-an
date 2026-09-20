@@ -129,18 +129,27 @@
 						<ShieldCheck class="w-3.5 h-3.5 text-amber-400" />
 						Kredensial Akun Administrator:
 					</span>
-					<button 
-						type="button" 
-						on:click={fillDemoCredentials}
-						class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition cursor-pointer"
-					>
-						⚡ Isi Otomatis
-					</button>
+					<div class="flex items-center gap-1">
+						<button 
+							type="button" 
+							on:click={() => { adminEmail = 'yadifarrel@gmail.com'; adminPassword = 'AdminQuran2026!'; }}
+							class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border border-amber-400/40 transition cursor-pointer"
+						>
+							⚡ Akun Farrel
+						</button>
+						<button 
+							type="button" 
+							on:click={fillDemoCredentials}
+							class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition cursor-pointer"
+						>
+							⚡ Demo
+						</button>
+					</div>
 				</div>
 				<div class="grid grid-cols-1 gap-1 font-mono text-[11px] text-stone-300 bg-black/40 p-2.5 rounded-xl border border-amber-900/30">
 					<div class="flex justify-between items-center">
-						<span class="text-stone-400">Email:</span>
-						<span class="text-amber-200 font-semibold select-all">admin@portalquran.id</span>
+						<span class="text-stone-400">Email Utama:</span>
+						<span class="text-amber-200 font-semibold select-all">yadifarrel@gmail.com</span>
 					</div>
 					<div class="flex justify-between items-center">
 						<span class="text-stone-400">Password:</span>
