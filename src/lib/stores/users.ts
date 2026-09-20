@@ -47,7 +47,7 @@ function createUsersStore() {
 						.select('*')
 						.order('created_at', { ascending: false });
 
-					if (!error && data) {
+					if (!error && data && data.length > 0) {
 						const mapped: ManagedUser[] = data.map((p: any) => ({
 							id: p.id,
 							name: p.full_name || 'Pengguna',
@@ -67,7 +67,23 @@ function createUsersStore() {
 					console.warn('Error fetching Supabase users:', err);
 				}
 			}
-			return [];
+			// Default demo fallback if profiles table is still empty
+			const defaultList: ManagedUser[] = [
+				{
+					id: 'admin-001',
+					name: 'Administrator Portal Qur\'an',
+					email: 'admin@portalquran.id',
+					phone: '081234567890',
+					role: 'admin',
+					is_active: true,
+					ayahs_read: 284,
+					streak: 15,
+					created_at: new Date().toISOString().split('T')[0]
+				}
+			];
+			set(defaultList);
+			save(defaultList);
+			return defaultList;
 		},
 		addUser: async (user: ManagedUser) => {
 			update((items) => {
@@ -75,6 +91,21 @@ function createUsersStore() {
 				save(updated);
 				return updated;
 			});
+
+			if (isSupabaseConfigured()) {
+				try {
+					await supabase.from('profiles').upsert({
+						id: user.id.startsWith('usr-') ? undefined : user.id,
+						full_name: user.name,
+						email: user.email,
+						role: user.role,
+						is_active: user.is_active,
+						created_at: new Date().toISOString()
+					});
+				} catch (err) {
+					console.warn('Could not sync added user to Supabase:', err);
+				}
+			}
 		},
 		toggleActive: async (id: string) => {
 			update((items) => {
