@@ -22,7 +22,8 @@
 		EyeOff, 
 		Sparkles, 
 		CheckCircle2, 
-		AlertCircle 
+		AlertCircle,
+		RefreshCw 
 	} from 'lucide-svelte';
 
 	let searchQuery = '';
@@ -146,14 +147,24 @@
 			<p class="text-xs text-quran-warm">Kelola data customer, hak akses role admin/customer, dan status keaktifan akun secara real-time.</p>
 		</div>
 
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-2 sm:gap-3 flex-wrap">
 			<span class="text-xs font-bold px-3 py-1.5 rounded-2xl bg-quran-sand text-quran-dark border border-quran-border self-start sm:self-auto">
 				Total Pengguna: {$usersStore.length}
 			</span>
 
 			<button 
+				on:click={async () => { isLoading = true; await usersStore.fetchUsers(); isLoading = false; }}
+				disabled={isLoading}
+				class="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-quran-sand hover:bg-quran-sandDark text-quran-dark font-bold text-xs border border-quran-border transition cursor-pointer disabled:opacity-50"
+				title="Sinkronkan data dengan Supabase"
+			>
+				<RefreshCw class="w-3.5 h-3.5 text-quran-gold {isLoading ? 'animate-spin' : ''}" />
+				<span>Sinkron Database</span>
+			</button>
+
+			<button 
 				on:click={() => addModalOpen = true}
-				class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-luxury text-quran-cream font-bold text-xs shadow-gold hover:scale-105 active:scale-95 transition-all"
+				class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-luxury text-quran-cream font-bold text-xs shadow-gold hover:scale-105 active:scale-95 transition-all cursor-pointer"
 			>
 				<Plus class="w-4 h-4 text-quran-gold" />
 				<span>Tambah Pengguna</span>

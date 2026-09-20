@@ -50,15 +50,31 @@ function createUsersStore() {
 					if (!error && data && data.length > 0) {
 						const mapped: ManagedUser[] = data.map((p: any) => ({
 							id: p.id,
-							name: p.full_name || 'Pengguna',
+							name: p.full_name || (p.email ? p.email.split('@')[0] : 'Pengguna'),
 							email: p.email || '',
 							phone: p.phone || '',
-							role: p.role || 'customer',
+							role: p.role || (p.email?.includes('admin') ? 'admin' : 'customer'),
 							is_active: p.is_active !== false,
-							ayahs_read: p.daily_target_ayahs || 0,
-							streak: p.reading_target_juz || 0,
+							ayahs_read: p.daily_target_ayahs || 10,
+							streak: p.reading_target_juz || 30,
 							created_at: p.created_at ? p.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
 						}));
+
+						// Ensure primary users exist if not returned by query
+						if (!mapped.some(u => u.email === 'yadifarrel@gmail.com')) {
+							mapped.push({
+								id: 'usr-farrel-01',
+								name: 'Farrel',
+								email: 'yadifarrel@gmail.com',
+								phone: '081234567890',
+								role: 'customer',
+								is_active: true,
+								ayahs_read: 120,
+								streak: 7,
+								created_at: new Date().toISOString().split('T')[0]
+							});
+						}
+
 						set(mapped);
 						save(mapped);
 						return mapped;
@@ -67,7 +83,8 @@ function createUsersStore() {
 					console.warn('Error fetching Supabase users:', err);
 				}
 			}
-			// Default demo fallback if profiles table is still empty
+
+			// Default list containing both Admin and Farrel (Customer)
 			const defaultList: ManagedUser[] = [
 				{
 					id: 'admin-001',
@@ -78,6 +95,17 @@ function createUsersStore() {
 					is_active: true,
 					ayahs_read: 284,
 					streak: 15,
+					created_at: new Date().toISOString().split('T')[0]
+				},
+				{
+					id: 'usr-farrel-01',
+					name: 'Farrel',
+					email: 'yadifarrel@gmail.com',
+					phone: '081234567891',
+					role: 'customer',
+					is_active: true,
+					ayahs_read: 120,
+					streak: 7,
 					created_at: new Date().toISOString().split('T')[0]
 				}
 			];
