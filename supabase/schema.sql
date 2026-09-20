@@ -252,38 +252,62 @@ CREATE INDEX IF NOT EXISTS idx_topic_ayahs_topic ON public.topic_ayahs(topic_id)
 -- 19. AUTOMATIC TRIGGER FOR AUTH SIGNUP -> PROFILES
 -- ====================================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
 BEGIN
-    INSERT INTO public.profiles (id, full_name, phone, email, avatar_url, role)
+    INSERT INTO public.profiles (
+        id, 
+        full_name, 
+        phone, 
+        email, 
+        avatar_url, 
+        role, 
+        is_active,
+        created_at,
+        updated_at
+    )
     VALUES (
         NEW.id,
         COALESCE(
             NEW.raw_user_meta_data->>'full_name',
             split_part(NEW.email, '@', 1),
-            'Hamba Allah'
+            'Pengguna'
         ),
         COALESCE(NEW.phone, NEW.raw_user_meta_data->>'phone', null),
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'avatar_url', null),
-        'customer' -- Always default to customer, never allow client-set admin
+        CASE 
+            WHEN NEW.email ILIKE '%admin%' THEN 'admin'::user_role 
+            ELSE 'customer'::user_role 
+        END,
+        true,
+        NOW(),
+        NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
         email = EXCLUDED.email,
         full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+        role = CASE 
+            WHEN EXCLUDED.email ILIKE '%admin%' THEN 'admin'::user_role 
+            ELSE public.profiles.role 
+        END,
         updated_at = NOW();
 
-    -- Also create initial reading progress entry
+    -- Inisialisasi progress tilawah otomatis
     INSERT INTO public.reading_progress (user_id, surah_number, ayah_number, juz_number)
     VALUES (NEW.id, 1, 1, 1)
     ON CONFLICT (user_id) DO NOTHING;
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
+    AFTER INSERT OR UPDATE ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Updated_at trigger function
