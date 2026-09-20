@@ -15,12 +15,17 @@
 		ShieldAlert
 	} from 'lucide-svelte';
 
-	let adminEmail = '';
-	let adminPassword = '';
+	let adminEmail = 'admin@portalquran.id';
+	let adminPassword = 'AdminQuran2026!';
 	let showPassword = false;
 	let isLoading = false;
 	let errorMessage = '';
 	let successMessage = '';
+
+	function fillDemoCredentials() {
+		adminEmail = 'admin@portalquran.id';
+		adminPassword = 'AdminQuran2026!';
+	}
 
 	onMount(() => {
 		if ($isAdmin) {
@@ -115,6 +120,33 @@
 				<p class="text-xs text-quran-muted leading-relaxed">
 					Portal khusus pengelola. Masuk menggunakan akun terverifikasi dengan hak role Admin.
 				</p>
+			</div>
+
+			<!-- Demo Credentials Box -->
+			<div class="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-600/30 text-amber-200 text-xs space-y-2">
+				<div class="flex items-center justify-between">
+					<span class="font-bold text-amber-400 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+						<ShieldCheck class="w-3.5 h-3.5 text-amber-400" />
+						Kredensial Akun Administrator:
+					</span>
+					<button 
+						type="button" 
+						on:click={fillDemoCredentials}
+						class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition cursor-pointer"
+					>
+						⚡ Isi Otomatis
+					</button>
+				</div>
+				<div class="grid grid-cols-1 gap-1 font-mono text-[11px] text-stone-300 bg-black/40 p-2.5 rounded-xl border border-amber-900/30">
+					<div class="flex justify-between items-center">
+						<span class="text-stone-400">Email:</span>
+						<span class="text-amber-200 font-semibold select-all">admin@portalquran.id</span>
+					</div>
+					<div class="flex justify-between items-center">
+						<span class="text-stone-400">Password:</span>
+						<span class="text-amber-200 font-semibold select-all">AdminQuran2026!</span>
+					</div>
+				</div>
 			</div>
 
 			<!-- Alerts -->
