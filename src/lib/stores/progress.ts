@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type { Bookmark, UserCollection, ReadingProgress, ReadingStats } from '$lib/types/quran';
 import { supabase, isSupabaseConfigured } from '$lib/supabase/client';
+import { usersStore } from '$lib/stores/users';
 
 const PROGRESS_KEY = 'pq_reading_progress_v33';
 const BOOKMARKS_KEY = 'pq_bookmarks_v33';
@@ -169,8 +170,13 @@ function createProgressStore() {
 				// Record reading history with debouncing
 				clearTimeout(progressDebounceTimer);
 				progressDebounceTimer = setTimeout(() => {
+					let currentTotalAyahs = 245;
+					let currentStreak = 7;
+
 					stats.update((s) => {
 						const nextAyahs = s.total_ayahs_read + 1;
+						currentTotalAyahs = nextAyahs;
+						currentStreak = s.current_streak_days || 1;
 						const nextHistory = [
 							{ surah_number, surah_name, ayah_number, timestamp: 'Baru saja' },
 							...s.recent_history.slice(0, 19)
@@ -186,17 +192,41 @@ function createProgressStore() {
 						return updated;
 					});
 
-					// Sync with Supabase if online
+					// Sync reading progress to Admin User Management directory
+					if (typeof window !== 'undefined') {
+						try {
+							const rawSession = localStorage.getItem('pq_user_session_v33');
+							if (rawSession) {
+								const sessUser = JSON.parse(rawSession);
+								if (sessUser?.email || sessUser?.id) {
+									usersStore.recordReadingActivity(
+										sessUser.email || sessUser.id,
+										`${surah_name} : ${ayah_number}`,
+										currentTotalAyahs,
+										currentStreak
+									);
+								}
+							}
+						} catch {}
+					}
+
+					// Sync with Supabase if online (using onConflict: 'user_id' so updates succeed)
 					if (isSupabaseConfigured()) {
 						supabase.auth.getSession().then(({ data }) => {
 							if (data.session?.user) {
-								supabase.from('reading_progress').upsert({
-									user_id: data.session.user.id,
-									surah_number,
-									ayah_number,
-									juz_number,
-									last_read_at: new Date().toISOString()
-								}).then(() => {});
+								supabase
+									.from('reading_progress')
+									.upsert(
+										{
+											user_id: data.session.user.id,
+											surah_number,
+											ayah_number,
+											juz_number,
+											last_read_at: new Date().toISOString()
+										},
+										{ onConflict: 'user_id' }
+									)
+									.then(() => {});
 							}
 						}).catch(() => {});
 					}

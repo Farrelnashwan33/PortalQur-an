@@ -3,7 +3,8 @@ import type { Agenda } from '$lib/types/quran';
 import { SAMPLE_AGENDAS } from '$lib/data/sampleAgendas';
 import { supabase, isSupabaseConfigured } from '$lib/supabase/client';
 
-const AGENDAS_STORAGE_KEY = 'pq_agendas_data_v33';
+const AGENDAS_STORAGE_KEY = 'pq_agendas_data_v34';
+const SUPABASE_AGENDAS_FALLBACK_KEY = 'custom_agendas_v34';
 
 const CATEGORY_DEFAULT_IMAGES: Record<string, string> = {
 	Kajian: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=800&auto=format&fit=crop',
@@ -11,6 +12,17 @@ const CATEGORY_DEFAULT_IMAGES: Record<string, string> = {
 	Event: '/images/agendas/tilawah-harian.jpg',
 	Pengingat: '/images/agendas/alkahfi-friday.jpg'
 };
+
+function generateUuid(): string {
+	if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+		return crypto.randomUUID();
+	}
+	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		const v = c === 'x' ? r : (r & 0x3) | 0x8;
+		return v.toString(16);
+	});
+}
 
 function normalizeAgendaItem(agenda: Agenda): Agenda {
 	const url = agenda.image_url?.trim() || '';
@@ -37,7 +49,7 @@ function createAgendaStore() {
 	let initialAgendas: Agenda[] = normalizeAgendas(SAMPLE_AGENDAS);
 
 	if (typeof window !== 'undefined') {
-		const stored = localStorage.getItem(AGENDAS_STORAGE_KEY);
+		const stored = localStorage.getItem(AGENDAS_STORAGE_KEY) || localStorage.getItem('pq_agendas_data_v33');
 		if (stored) {
 			try {
 				initialAgendas = normalizeAgendas(JSON.parse(stored));
@@ -49,76 +61,135 @@ function createAgendaStore() {
 	}
 
 	const { subscribe, set, update } = writable<Agenda[]>(initialAgendas);
+	let bc: BroadcastChannel | null = null;
 
-	// Fetch fresh from Supabase if configured
-	if (typeof window !== 'undefined' && isSupabaseConfigured()) {
-		(async () => {
-			try {
-				const { data, error } = await supabase
-					.from('agendas')
-					.select('*')
-					.order('event_date', { ascending: true });
-				if (!error && data && data.length > 0) {
-					const normalized = normalizeAgendas(data as Agenda[]);
-					set(normalized);
+	async function syncSettingsBackup(items: Agenda[]) {
+		if (!isSupabaseConfigured()) return;
+		try {
+			await supabase.from('app_settings').upsert(
+				{
+					key: SUPABASE_AGENDAS_FALLBACK_KEY,
+					value: items,
+					description: 'Daftar agenda kajian & pengingat jamaah',
+					updated_at: new Date().toISOString()
+				},
+				{ onConflict: 'key' }
+			);
+		} catch {}
+	}
+
+	async function refreshFromCloud() {
+		if (!isSupabaseConfigured()) return;
+		try {
+			const [settingsRes, tableRes] = await Promise.allSettled([
+				supabase.from('app_settings').select('value').eq('key', SUPABASE_AGENDAS_FALLBACK_KEY).maybeSingle(),
+				supabase.from('agendas').select('*').order('event_date', { ascending: true })
+			]);
+
+			if (settingsRes.status === 'fulfilled' && Array.isArray(settingsRes.value.data?.value) && settingsRes.value.data.value.length > 0) {
+				const normalized = normalizeAgendas(settingsRes.value.data.value as Agenda[]);
+				set(normalized);
+				if (typeof window !== 'undefined') {
 					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(normalized));
 				}
-			} catch {}
-		})();
+				return;
+			}
+
+			if (tableRes.status === 'fulfilled' && !tableRes.value.error && tableRes.value.data && tableRes.value.data.length > 0) {
+				const normalized = normalizeAgendas(tableRes.value.data as Agenda[]);
+				set(normalized);
+				if (typeof window !== 'undefined') {
+					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(normalized));
+				}
+			}
+		} catch {}
+	}
+
+	if (typeof window !== 'undefined') {
+		try {
+			if ('BroadcastChannel' in window) {
+				bc = new BroadcastChannel('pq_agendas_sync');
+				bc.onmessage = (ev) => {
+					if (Array.isArray(ev?.data)) {
+						const normalized = normalizeAgendas(ev.data);
+						set(normalized);
+						localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(normalized));
+					}
+				};
+			}
+		} catch {}
+
+		window.addEventListener('focus', () => refreshFromCloud());
+		refreshFromCloud();
 	}
 
 	return {
 		subscribe,
+		refresh: refreshFromCloud,
 		addAgenda: async (agenda: Agenda) => {
-			const normalizedAgenda = normalizeAgendaItem(agenda);
+			const cleanId = /^[0-9a-f-]{36}$/i.test(agenda.id) ? agenda.id : generateUuid();
+			const normalizedAgenda = normalizeAgendaItem({ ...agenda, id: cleanId });
+			let snapshot: Agenda[] = [];
+
 			update((items) => {
 				const updated = [normalizedAgenda, ...items];
+				snapshot = updated;
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(updated));
 				}
+				try {
+					bc?.postMessage(updated);
+				} catch {}
 				return updated;
 			});
 
 			if (isSupabaseConfigured()) {
 				try {
-					await supabase.from('agendas').insert([normalizedAgenda]);
-				} catch (e) {
-					console.warn('Supabase agenda insert error:', e);
-				}
+					await supabase.from('agendas').upsert([normalizedAgenda], { onConflict: 'id' });
+				} catch {}
+				await syncSettingsBackup(snapshot);
 			}
 		},
 		updateAgenda: async (id: string, updates: Partial<Agenda>) => {
+			let snapshot: Agenda[] = [];
 			update((items) => {
-				const updated = items.map((a) => (a.id === id ? { ...a, ...updates } : a));
+				const updated = items.map((a) => (a.id === id ? normalizeAgendaItem({ ...a, ...updates }) : a));
+				snapshot = updated;
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(updated));
 				}
+				try {
+					bc?.postMessage(updated);
+				} catch {}
 				return updated;
 			});
 
 			if (isSupabaseConfigured()) {
 				try {
 					await supabase.from('agendas').update(updates).eq('id', id);
-				} catch (e) {
-					console.warn('Supabase agenda update error:', e);
-				}
+				} catch {}
+				await syncSettingsBackup(snapshot);
 			}
 		},
 		deleteAgenda: async (id: string) => {
+			let snapshot: Agenda[] = [];
 			update((items) => {
 				const updated = items.filter((a) => a.id !== id);
+				snapshot = updated;
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(updated));
 				}
+				try {
+					bc?.postMessage(updated);
+				} catch {}
 				return updated;
 			});
 
 			if (isSupabaseConfigured()) {
 				try {
 					await supabase.from('agendas').delete().eq('id', id);
-				} catch (e) {
-					console.warn('Supabase agenda delete error:', e);
-				}
+				} catch {}
+				await syncSettingsBackup(snapshot);
 			}
 		}
 	};

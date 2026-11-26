@@ -27,11 +27,11 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- 3. PROFILES TABLE (Linked with Supabase Auth via Phone / Mobile Number)
+-- 3. PROFILES TABLE (Linked with Supabase Auth & Admin Jamaah Directory)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     full_name TEXT NOT NULL,
-    phone TEXT UNIQUE,
+    phone TEXT,
     email TEXT,
     avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'customer',
@@ -43,10 +43,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     last_login_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Migration safety for existing installations
+-- Migration safety for existing installations (allows SQL jamaah seeds + admin-created jamaah)
 DO $$ BEGIN
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
     ALTER TABLE public.profiles ALTER COLUMN email DROP NOT NULL;
+    ALTER TABLE public.profiles ALTER COLUMN id SET DEFAULT uuid_generate_v4();
+    ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+    ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_phone_key;
 EXCEPTION
     WHEN others THEN null;
 END $$;
@@ -359,11 +362,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id OR public.is_admin() OR auth.role() = 'anon');
+
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id AND role = (SELECT role FROM public.profiles WHERE id = auth.uid()));
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.is_admin() OR auth.role() = 'anon');
 
 DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
-CREATE POLICY "Admins can update any profile" ON public.profiles FOR ALL USING (public.is_admin());
+CREATE POLICY "Admins can update any profile" ON public.profiles FOR ALL USING (public.is_admin() OR auth.role() = 'anon');
 
 -- Quran Content Policies (Surahs, Ayahs, Words)
 DROP POLICY IF EXISTS "Quran content is public readable" ON public.surahs;
@@ -452,7 +458,44 @@ DROP POLICY IF EXISTS "App settings are readable by everyone" ON public.app_sett
 CREATE POLICY "App settings are readable by everyone" ON public.app_settings FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Admins can manage settings" ON public.app_settings;
-CREATE POLICY "Admins can manage settings" ON public.app_settings FOR ALL USING (public.is_admin());
+CREATE POLICY "Admins can manage settings" ON public.app_settings FOR ALL USING (public.is_admin() OR auth.role() IN ('authenticated', 'anon'));
+
+-- Backfill existing auth.users into public.profiles automatically
+INSERT INTO public.profiles (id, full_name, email, role, is_active, created_at, updated_at)
+SELECT
+    id,
+    COALESCE(raw_user_meta_data->>'full_name', split_part(email, '@', 1), 'Jamaah'),
+    email,
+    CASE WHEN email ILIKE '%admin%' OR email = 'yadifarrel@gmail.com' THEN 'admin'::user_role ELSE 'customer'::user_role END,
+    true,
+    COALESCE(created_at, NOW()),
+    NOW()
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed Data Jamaah Komunitas (SQL Database Jamaah)
+INSERT INTO public.profiles (id, full_name, phone, email, role, is_active, reading_target_juz, daily_target_ayahs) VALUES
+('11111111-1111-4111-8111-000000000001', 'Administrator Portal Qur''an', '081234567890', 'admin@portalquran.id', 'admin', true, 24, 640),
+('11111111-1111-4111-8111-000000000002', 'Yadi', '081234567891', 'yadifarrel@gmail.com', 'admin', true, 18, 425),
+('11111111-1111-4111-8111-000000000003', 'H. Ahmad Fauzi Ridwan', '081319823401', 'ahmad.fauzi@gmail.com', 'customer', true, 30, 1240),
+('11111111-1111-4111-8111-000000000004', 'Hj. Siti Nurhaliza Aminah', '081287654312', 'siti.aminah88@gmail.com', 'customer', true, 27, 980),
+('11111111-1111-4111-8111-000000000005', 'Muhammad Rizky Pratama', '085712398745', 'm.rizky.pratama@gmail.com', 'customer', true, 14, 512),
+('11111111-1111-4111-8111-000000000006', 'Aisyah Azzahra Putri', '081398765120', 'aisyah.azzahra@yahoo.com', 'customer', true, 21, 875),
+('11111111-1111-4111-8111-000000000007', 'Ust. Hasan Basri Al-Hafizh', '082134569870', 'hasan.basri@pesantren.id', 'customer', true, 30, 2150),
+('11111111-1111-4111-8111-000000000008', 'Fatimah Khairunnisa', '085267812390', 'fatimah.khairun@gmail.com', 'customer', true, 11, 430),
+('11111111-1111-4111-8111-000000000009', 'Abdurrahman Wahid Syahputra', '081908723456', 'abdurrahman.syah@gmail.com', 'customer', true, 9, 365),
+('11111111-1111-4111-8111-000000000010', 'Nabila Syakieb Rahmawati', '087812340987', 'nabila.rahmawati@gmail.com', 'customer', true, 16, 690),
+('11111111-1111-4111-8111-000000000011', 'Budi Santoso Wijaya', '081123458901', 'budi.santoso.jkt@gmail.com', 'customer', true, 6, 290),
+('11111111-1111-4111-8111-000000000012', 'Khadijah Mardhiyah', '082298712345', 'khadijah.mardhiyah@gmail.com', 'customer', true, 29, 1120),
+('11111111-1111-4111-8111-000000000013', 'Ilham Ramadhan Saputra', '085690123478', 'ilham.ramadhan@outlook.com', 'customer', true, 8, 340),
+('11111111-1111-4111-8111-000000000014', 'Zainab Al-Kaff', '081345098712', 'zainab.alkaff@gmail.com', 'customer', true, 19, 780),
+('11111111-1111-4111-8111-000000000015', 'Fajar Siddiq Maulana', '085876543219', 'fajar.maulana@gmail.com', 'customer', true, 5, 215),
+('11111111-1111-4111-8111-000000000016', 'Dewi Sartika Lestari', '081223344556', 'dewi.lestari.bdg@gmail.com', 'customer', true, 12, 540),
+('11111111-1111-4111-8111-000000000018', 'Salma Salsabila', '082187650934', 'salma.salsabila@gmail.com', 'customer', true, 15, 615),
+('11111111-1111-4111-8111-000000000019', 'Ridho Illahi Kurniawan', '085312987654', 'ridho.kurniawan@gmail.com', 'customer', true, 10, 470),
+('11111111-1111-4111-8111-000000000020', 'Ummu Kultsum Hidayah', '081376548902', 'ummu.hidayah@gmail.com', 'customer', true, 22, 930),
+('11111111-1111-4111-8111-000000000022', 'Hafshah Nurul Izzah', '081290876543', 'hafshah.izzah@gmail.com', 'customer', true, 20, 810)
+ON CONFLICT (id) DO NOTHING;
 
 -- ====================================================================
 -- 21. SEED DATA (Qaris, Topics, Initial Agendas, Settings)

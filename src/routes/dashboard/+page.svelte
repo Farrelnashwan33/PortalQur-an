@@ -6,6 +6,7 @@
 	import { audioStore } from '$lib/stores/audio';
 	import { agendaStore } from '$lib/stores/agenda';
 	import { topicStore } from '$lib/stores/topics';
+	import { portalSettingsStore } from '$lib/stores/settings';
 	import { 
 		BookOpen, 
 		Flame, 
@@ -19,7 +20,9 @@
 		Compass, 
 		Layers,
 		TrendingUp,
-		Share2
+		Share2,
+		Megaphone,
+		AlertTriangle
 	} from 'lucide-svelte';
 
 	onMount(() => {
@@ -39,22 +42,66 @@
 	const stats = progressStore.stats;
 	const bookmarks = progressStore.bookmarks;
 
-	// Verse of the day
-	const verseOfTheDay = {
-		surah_number: 2,
-		surah_name: 'Al-Baqarah',
-		ayah_number: 186,
-		text_arabic: 'وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ',
-		text_id: 'Dan apabila hamba-hamba-Ku bertanya kepadamu (Muhammad) tentang Aku, maka sesungguhnya Aku dekat. Aku mengabulkan permohonan orang yang berdoa apabila dia berdoa kepada-Ku.',
-		theme: 'Kedekatan Allah & Pengabulan Doa'
+	// Verse of the day (live synced from Admin Pengaturan Beranda)
+	$: verseOfTheDay = {
+		surah_number: $portalSettingsStore.votdSurahNumber || 2,
+		surah_name: $portalSettingsStore.votdSurahName || 'Al-Baqarah',
+		ayah_number: $portalSettingsStore.votdAyahNumber || 186,
+		text_arabic: $portalSettingsStore.votdArabic,
+		text_id: $portalSettingsStore.votdTranslation,
+		theme: $portalSettingsStore.votdTheme
 	};
 </script>
 
 <svelte:head>
-	<title>Customer Dashboard - Portal Qur'an v3.3</title>
+	<title>Beranda Jamaah - {$portalSettingsStore.appName}</title>
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+	{#if $portalSettingsStore.maintenanceMode}
+		<div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-sm">
+			<AlertTriangle class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+			<div class="text-xs leading-relaxed">
+				<span class="font-extrabold uppercase tracking-wider block mb-0.5">Pemberitahuan Pemeliharaan</span>
+				<span>{$portalSettingsStore.maintenanceMessage}</span>
+			</div>
+		</div>
+	{/if}
+
+	{#if $portalSettingsStore.infoEnabled && ($portalSettingsStore.infoTitle || $portalSettingsStore.infoMessage)}
+		<div class="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-quran-surface via-amber-50/50 to-quran-sand border border-quran-gold/50 shadow-luxury flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+			<div class="flex items-start gap-3.5 min-w-0">
+				<div class="w-10 h-10 rounded-2xl bg-gradient-luxury text-quran-gold flex items-center justify-center flex-shrink-0 shadow-gold">
+					<Megaphone class="w-4 h-4" />
+				</div>
+				<div class="min-w-0 space-y-1">
+					<div class="flex items-center gap-2 flex-wrap">
+						{#if $portalSettingsStore.infoBadge}
+							<span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-quran-gold/25 text-quran-chocolate border border-quran-gold/40">
+								{$portalSettingsStore.infoBadge}
+							</span>
+						{/if}
+						<h2 class="text-xs sm:text-sm font-extrabold text-quran-dark">
+							{$portalSettingsStore.infoTitle}
+						</h2>
+					</div>
+					<p class="text-xs text-quran-warm leading-relaxed">
+						{$portalSettingsStore.infoMessage}
+					</p>
+				</div>
+			</div>
+
+			{#if $portalSettingsStore.infoCtaText && $portalSettingsStore.infoCtaUrl}
+				<a
+					href={$portalSettingsStore.infoCtaUrl}
+					class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-luxury text-quran-cream text-xs font-bold shadow-gold hover:scale-[1.02] active:scale-95 transition flex-shrink-0 self-start sm:self-center"
+				>
+					<span>{$portalSettingsStore.infoCtaText}</span>
+					<ArrowRight class="w-3.5 h-3.5 text-quran-gold" />
+				</a>
+			{/if}
+		</div>
+	{/if}
 	
 	<!-- 1. Hero Greeting Banner (Full width on Mobile, Split on Desktop) -->
 	<div class="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-luxury text-quran-cream p-5 sm:p-7 md:p-8 lg:p-9 shadow-luxury border border-quran-gold/30">
@@ -74,14 +121,14 @@
 				<div class="flex-1 min-w-0">
 					<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-quran-gold/30 text-[11px] sm:text-xs font-semibold text-quran-goldLight mb-2.5">
 						<Sparkles class="w-3.5 h-3.5 text-quran-gold" />
-						<span>Bismillah, Awali Harimu Dengan Qur'an</span>
+						<span>{$portalSettingsStore.heroGreetingBadge}</span>
 					</div>
 
 					<h1 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-snug">
 						Assalamu'alaikum, <span class="text-quran-goldLight">{$authStore?.full_name || 'Sahabat Qur\'an'}</span>
 					</h1>
 					<p class="text-xs sm:text-sm text-quran-cream/80 mt-2 leading-relaxed italic">
-						"Sebaik-baik kalian adalah orang yang belajar Al-Qur'an dan mengajarkannya." <span class="text-quran-goldLight/70 font-sans not-italic text-[11px]">(HR. Bukhari)</span>
+						"{$portalSettingsStore.heroQuote}" <span class="text-quran-goldLight/70 font-sans not-italic text-[11px]">{$portalSettingsStore.heroQuoteSource}</span>
 					</p>
 
 					<!-- Compact 2-Column Stats Grid in Hero -->

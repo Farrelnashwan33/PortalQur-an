@@ -7,6 +7,7 @@
 	import { QARI_LIST } from '$lib/data/surahList';
 	import { readerStore } from '$lib/stores/reader';
 	import { progressStore } from '$lib/stores/progress';
+	import { surahStore, tafsirStore } from '$lib/stores/surahs';
 	import type { AyahDetail } from '$lib/types/quran';
 	import SurahInfoModal from '$lib/components/SurahInfoModal.svelte';
 	import AyahTafsirModal from '$lib/components/AyahTafsirModal.svelte';
@@ -35,9 +36,32 @@
 	} from 'lucide-svelte';
 
 	export let data: PageData;
-	$: surah = data.surah;
-	$: prevSurah = data.prevSurah;
-	$: nextSurah = data.nextSurah;
+	$: customMeta = $surahStore.find((s) => s.number === data.surah.number);
+	$: surah = {
+		...data.surah,
+		...(customMeta
+			? {
+					name_latin: customMeta.name_latin,
+					name_id: customMeta.name_id,
+					description: customMeta.description || data.surah.description,
+					virtues: customMeta.virtues || data.surah.virtues
+				}
+			: {}),
+		ayahs: data.surah.ayahs.map((a) => {
+			const override = $tafsirStore.find(
+				(t) => t.surah_number === data.surah.number && t.ayah_number === a.ayah_number
+			);
+			return override
+				? {
+						...a,
+						text_id: override.text_id || a.text_id,
+						tafsir_ringkas: override.tafsir_ringkas || a.tafsir_ringkas
+					}
+				: a;
+		})
+	};
+	$: prevSurah = data.prevSurah ? ($surahStore.find((s) => s.number === data.prevSurah!.number) || data.prevSurah) : null;
+	$: nextSurah = data.nextSurah ? ($surahStore.find((s) => s.number === data.nextSurah!.number) || data.nextSurah) : null;
 
 	const bookmarks = progressStore.bookmarks;
 	const progress = progressStore.progress;
@@ -49,6 +73,9 @@
 	let isCollectionModalOpen = false;
 	let qariHeaderDropdownOpen = false;
 	let activeAyahForModal: AyahDetail | null = null;
+	$: resolvedAyahForModal = activeAyahForModal
+		? (surah.ayahs.find((x) => x.ayah_number === activeAyahForModal!.ayah_number) || activeAyahForModal)
+		: null;
 	let copiedAyahNumber: number | null = null;
 
 	$: availableQaris = ($qariStore && $qariStore.length > 0 ? $qariStore : QARI_LIST).filter(q => q.is_active !== false);
@@ -630,21 +657,21 @@
 	/>
 
 	<AyahTafsirModal 
-		ayah={activeAyahForModal} 
+		ayah={resolvedAyahForModal} 
 		surahName={surah.name_latin} 
 		isOpen={isTafsirModalOpen} 
 		onClose={() => isTafsirModalOpen = false} 
 	/>
 
 	<AyahWordByWordModal 
-		ayah={activeAyahForModal} 
+		ayah={resolvedAyahForModal} 
 		surahName={surah.name_latin} 
 		isOpen={isWordModalOpen} 
 		onClose={() => isWordModalOpen = false} 
 	/>
 
 	<AddToCollectionModal 
-		ayah={activeAyahForModal} 
+		ayah={resolvedAyahForModal} 
 		surahName={surah.name_latin} 
 		isOpen={isCollectionModalOpen} 
 		onClose={() => isCollectionModalOpen = false} 

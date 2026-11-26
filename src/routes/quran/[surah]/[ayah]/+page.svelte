@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import { audioStore } from '$lib/stores/audio';
 	import { progressStore } from '$lib/stores/progress';
+	import { surahStore, tafsirStore } from '$lib/stores/surahs';
 	import AyahTafsirModal from '$lib/components/AyahTafsirModal.svelte';
 	import AyahWordByWordModal from '$lib/components/AyahWordByWordModal.svelte';
 	import AddToCollectionModal from '$lib/components/AddToCollectionModal.svelte';
@@ -19,8 +20,20 @@
 	} from 'lucide-svelte';
 
 	export let data: PageData;
-	$: surah = data.surah;
-	$: ayah = data.ayah;
+	$: customMeta = $surahStore.find((s) => s.number === data.surah.number);
+	$: surah = customMeta
+		? { ...data.surah, name_latin: customMeta.name_latin, name_id: customMeta.name_id }
+		: data.surah;
+	$: customTafsir = $tafsirStore.find(
+		(t) => t.surah_number === data.surah.number && t.ayah_number === data.ayah.ayah_number
+	);
+	$: ayah = customTafsir
+		? {
+				...data.ayah,
+				text_id: customTafsir.text_id || data.ayah.text_id,
+				tafsir_ringkas: customTafsir.tafsir_ringkas || data.ayah.tafsir_ringkas
+			}
+		: data.ayah;
 
 	const bookmarks = progressStore.bookmarks;
 	let isTafsirOpen = false;

@@ -5,6 +5,7 @@
 	import { QARI_LIST } from '$lib/data/surahList';
 	import { progressStore } from '$lib/stores/progress';
 	import { pwaStore, isAppInstalled } from '$lib/stores/pwa';
+	import { portalSettingsStore } from '$lib/stores/settings';
 	import { 
 		BookOpen, 
 		Flame, 
@@ -32,10 +33,8 @@
 
 	$: availableQaris = ($qariStore && $qariStore.length > 0 ? $qariStore : QARI_LIST).filter(q => q.is_active !== false);
 
-	// Calculate Today's Hijri Date Estimate
-	function getIslamicDate() {
-		return '14 Rabi\'ul Awwal 1448 H';
-	}
+	// Calculate Today's Hijri Date Estimate (live synced from Admin Pengaturan)
+	$: islamicDateLabel = $portalSettingsStore.hijriDate || "14 Rabi'ul Awwal 1448 H";
 </script>
 
 <header class="sticky top-0 z-30 bg-quran-surface/90 backdrop-blur-md border-b border-quran-border/60 transition-all">
@@ -59,10 +58,10 @@
 				/>
 				<div class="leading-tight min-w-0">
 					<div class="flex items-center gap-1">
-						<span class="font-bold text-sm sm:text-base md:text-lg text-quran-dark tracking-tight truncate max-w-[85px] xs:max-w-[120px] sm:max-w-none">Portal Qur'an</span>
+						<span class="font-bold text-sm sm:text-base md:text-lg text-quran-dark tracking-tight truncate max-w-[85px] xs:max-w-[120px] sm:max-w-none">{$portalSettingsStore.appName || "Portal Qur'an"}</span>
 						<span class="hidden md:inline-block text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-quran-gold/20 text-quran-dark border border-quran-gold/40">v3.3</span>
 					</div>
-					<p class="text-xs text-quran-warm font-medium hidden lg:block">Ketenangan Dalam Setiap Ayat</p>
+					<p class="text-xs text-quran-warm font-medium hidden lg:block">{$portalSettingsStore.tagline || 'Ketenangan Dalam Setiap Ayat'}</p>
 				</div>
 			</a>
 		</div>
@@ -71,7 +70,7 @@
 		<div class="hidden md:flex items-center gap-3">
 			<div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-quran-sand border border-quran-border text-xs text-quran-chocolate font-medium">
 				<Calendar class="w-3.5 h-3.5 text-quran-gold" />
-				<span>{getIslamicDate()}</span>
+				<span>{islamicDateLabel}</span>
 			</div>
 
 			<button 
@@ -172,7 +171,7 @@
 			<!-- Admin Badge Link (if role admin) -->
 			{#if $isAdmin}
 				<a 
-					href="https://admin-portalquran.vercel.app" 
+					href="/admin" 
 					class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-quran-dark text-quran-gold text-xs font-semibold border border-quran-gold/40 hover:shadow-gold transition"
 				>
 					<ShieldCheck class="w-3.5 h-3.5" />
@@ -254,7 +253,7 @@
 							</a>
 							{#if $isAdmin}
 								<a 
-									href="https://admin-portalquran.vercel.app" 
+									href="/admin" 
 									on:click={() => userDropdownOpen = false}
 									class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-quran-dark bg-amber-50/60 rounded-xl hover:bg-amber-100/60 transition"
 								>
