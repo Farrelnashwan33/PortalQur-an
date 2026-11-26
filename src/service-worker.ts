@@ -20,13 +20,17 @@ const ASSETS_TO_CACHE = [
 const ROOT_ASSETS = ['/logo.png', '/favicon.png', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
-	// Pre-cache all build assets in the new cache
+	// Pre-cache build assets resiliently so one slow asset never aborts SW install
 	event.waitUntil(
 		caches
 			.open(CACHE_NAME)
-			.then((cache) => cache.addAll(ASSETS_TO_CACHE))
+			.then(async (cache) => {
+				await Promise.allSettled(ASSETS_TO_CACHE.map((asset) => cache.add(asset)));
+			})
 			.then(() => {
-				// Allow new service worker to prepare without waiting if skipWaiting triggered
+				if (!self.registration.active) {
+					return self.skipWaiting();
+				}
 			})
 	);
 });

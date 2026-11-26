@@ -9,6 +9,12 @@ export interface BeforeInstallPromptEvent extends Event {
 	prompt(): Promise<void>;
 }
 
+declare global {
+	interface Window {
+		__pwaDeferredPrompt?: BeforeInstallPromptEvent | null;
+	}
+}
+
 interface PWAState {
 	deferredPrompt: BeforeInstallPromptEvent | null;
 	isInstalled: boolean;
@@ -16,6 +22,8 @@ interface PWAState {
 	isIOS: boolean;
 	isAndroid: boolean;
 	isSafari: boolean;
+	isFirefox: boolean;
+	isChromium: boolean;
 	isInitialized: boolean;
 	isUpdateAvailable: boolean;
 	isUpdating: boolean;
@@ -23,12 +31,14 @@ interface PWAState {
 }
 
 const initialState: PWAState = {
-	deferredPrompt: null,
+	deferredPrompt: typeof window !== 'undefined' && window.__pwaDeferredPrompt ? window.__pwaDeferredPrompt : null,
 	isInstalled: false,
 	isStandalone: false,
 	isIOS: false,
 	isAndroid: false,
 	isSafari: false,
+	isFirefox: false,
+	isChromium: false,
 	isInitialized: false,
 	isUpdateAvailable: false,
 	isUpdating: false,
@@ -41,6 +51,7 @@ export const showUpdateToast = writable<boolean>(false);
 
 let updateCheckInterval: any = null;
 let refreshing = false;
+let listenersBound = false;
 
 export const pwaStore = {
 	subscribe: state.subscribe,
@@ -48,46 +59,95 @@ export const pwaStore = {
 	init: () => {
 		if (typeof window === 'undefined') return;
 
-		const userAgent = window.navigator.userAgent.toLowerCase();
-		const isIOS = /iphone|ipad|ipod/.test(userAgent) || 
+		const ua = window.navigator.userAgent.toLowerCase();
+		const isIOS =
+			/iphone|ipad|ipod/.test(ua) ||
 			(window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
-		const isAndroid = /android/.test(userAgent);
-		const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
-		
-		const isStandalone = 
+		const isAndroid = /android/.test(ua);
+		const isFirefox = /firefox|fxios/.test(ua);
+		const isChromium = /chrome|chromium|crios|edg|opr|brave/.test(ua) && !isFirefox;
+		const isSafari = /safari/.test(ua) && !isChromium && !isFirefox && !isAndroid;
+
+		const isStandalone =
 			window.matchMedia('(display-mode: standalone)').matches ||
+			window.matchMedia('(display-mode: minimal-ui)').matches ||
 			(window.navigator as unknown as { standalone?: boolean }).standalone === true ||
 			document.referrer.includes('android-app://');
 
+		if (isStandalone) {
+			try {
+				localStorage.setItem('pq_pwa_installed', '1');
+			} catch {}
+		}
+
+		// Pick up any prompt captured early in <head> before Svelte hydrated
+		const earlyPrompt = window.__pwaDeferredPrompt || null;
+
 		state.update((s) => ({
 			...s,
+			deferredPrompt: earlyPrompt || s.deferredPrompt,
 			isIOS,
 			isAndroid,
 			isSafari,
+			isFirefox,
+			isChromium,
 			isStandalone,
 			isInstalled: isStandalone,
 			isInitialized: true
 		}));
 
-		// Listen for PWA install prompt on Chromium / Android / Desktop Chrome
-		window.addEventListener('beforeinstallprompt', (e: Event) => {
-			e.preventDefault();
-			const installEvent = e as BeforeInstallPromptEvent;
-			state.update((s) => ({
-				...s,
-				deferredPrompt: installEvent
-			}));
-		});
+		if (!listenersBound) {
+			listenersBound = true;
 
-		// Listen for successful installation
-		window.addEventListener('appinstalled', () => {
-			state.update((s) => ({
-				...s,
-				deferredPrompt: null,
-				isInstalled: true
-			}));
-			showInstallModal.set(false);
-		});
+			const syncPromptFromWindow = () => {
+				if (window.__pwaDeferredPrompt) {
+					state.update((s) => ({
+						...s,
+						deferredPrompt: window.__pwaDeferredPrompt || null
+					}));
+				}
+			};
+
+			window.addEventListener('pwa-install-ready', syncPromptFromWindow);
+
+			window.addEventListener('beforeinstallprompt', (e: Event) => {
+				e.preventDefault();
+				const installEvent = e as BeforeInstallPromptEvent;
+				window.__pwaDeferredPrompt = installEvent;
+				state.update((s) => ({
+					...s,
+					deferredPrompt: installEvent
+				}));
+			});
+
+			const handleAppInstalled = () => {
+				window.__pwaDeferredPrompt = null;
+				try {
+					localStorage.setItem('pq_pwa_installed', '1');
+				} catch {}
+				state.update((s) => ({
+					...s,
+					deferredPrompt: null,
+					isInstalled: true
+				}));
+				showInstallModal.set(false);
+			};
+
+			window.addEventListener('appinstalled', handleAppInstalled);
+			window.addEventListener('pwa-app-installed', handleAppInstalled);
+		}
+
+		// Check related installed PWA apps on Chromium if supported
+		try {
+			const navAny = navigator as any;
+			if (typeof navAny.getInstalledRelatedApps === 'function') {
+				navAny.getInstalledRelatedApps().then((apps: any[]) => {
+					if (Array.isArray(apps) && apps.length > 0) {
+						state.update((s) => ({ ...s, isInstalled: true }));
+					}
+				}).catch(() => {});
+			}
+		} catch {}
 
 		// Handle Service Worker Registration & Update Lifecycle in Production
 		if ('serviceWorker' in navigator) {
@@ -98,7 +158,6 @@ export const pwaStore = {
 					}
 				});
 			} else {
-				// Listen for when a new SW takes control of the page
 				navigator.serviceWorker.addEventListener('controllerchange', () => {
 					if (refreshing) return;
 					refreshing = true;
@@ -106,23 +165,22 @@ export const pwaStore = {
 				});
 
 				navigator.serviceWorker
-					.register('/service-worker.js')
+					.getRegistration()
+					.then((existing) => existing || navigator.serviceWorker.register('/service-worker.js'))
 					.then((registration) => {
+						if (!registration) return;
 						state.update((s) => ({ ...s, registration }));
 
-						// Check if there is already a waiting service worker
 						if (registration.waiting) {
 							state.update((s) => ({ ...s, isUpdateAvailable: true }));
 							showUpdateToast.set(true);
 						}
 
-						// Listen for updates on the registration
 						registration.addEventListener('updatefound', () => {
 							const newWorker = registration.installing;
 							if (!newWorker) return;
 
 							newWorker.addEventListener('statechange', () => {
-								// When the new worker finishes installing and is waiting
 								if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
 									state.update((s) => ({ ...s, isUpdateAvailable: true }));
 									showUpdateToast.set(true);
@@ -134,19 +192,16 @@ export const pwaStore = {
 						console.warn('Service worker registration failed:', err);
 					});
 
-				// Auto-check for updates when app regains focus or becomes visible
 				document.addEventListener('visibilitychange', () => {
 					if (document.visibilityState === 'visible') {
 						pwaStore.checkForUpdate();
 					}
 				});
 
-				// Check for update when network recovers
 				window.addEventListener('online', () => {
 					pwaStore.checkForUpdate();
 				});
 
-				// Periodic update check every 20 minutes
 				if (!updateCheckInterval) {
 					updateCheckInterval = setInterval(() => {
 						pwaStore.checkForUpdate();
@@ -159,20 +214,16 @@ export const pwaStore = {
 	checkForUpdate: async () => {
 		if (typeof window === 'undefined') return;
 
-		// 1. Service worker update check
 		if ('serviceWorker' in navigator) {
 			const currentState = get(state);
 			const reg = currentState.registration;
 			if (reg) {
 				try {
 					await reg.update();
-				} catch (e) {
-					console.debug('Service worker update check:', e);
-				}
+				} catch {}
 			}
 		}
 
-		// 2. Fetch /version.json with timestamp to detect Vercel deployment updates
 		try {
 			const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' });
 			if (res.ok) {
@@ -188,9 +239,7 @@ export const pwaStore = {
 					}
 				}
 			}
-		} catch (e) {
-			// Offline or network error
-		}
+		} catch {}
 	},
 
 	applyUpdate: async () => {
@@ -198,7 +247,6 @@ export const pwaStore = {
 
 		state.update((s) => ({ ...s, isUpdating: true }));
 
-		// Sync latest version in localStorage
 		try {
 			const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' });
 			if (res.ok) {
@@ -213,10 +261,8 @@ export const pwaStore = {
 		const reg = currentState.registration;
 
 		if (reg && reg.waiting) {
-			// Signal the waiting service worker to skip waiting and activate
 			reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 		} else {
-			// Reload cleanly
 			setTimeout(() => {
 				window.location.reload();
 			}, 300);
@@ -226,8 +272,8 @@ export const pwaStore = {
 	dismissUpdateToast: () => {
 		if (typeof window !== 'undefined') {
 			fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' })
-				.then(r => r.json())
-				.then(data => {
+				.then((r) => r.json())
+				.then((data) => {
 					if (data.version) {
 						localStorage.setItem('pq_dismissed_version', data.version);
 					}
@@ -238,19 +284,42 @@ export const pwaStore = {
 	},
 
 	promptInstall: async (): Promise<'accepted' | 'dismissed' | 'manual' | 'already_installed'> => {
-		const currentState = get(state);
-		const currentPrompt = currentState.deferredPrompt;
-		const standalone = currentState.isStandalone || currentState.isInstalled;
+		if (typeof window === 'undefined') return 'manual';
 
-		if (standalone) {
+		let currentState = get(state);
+		if (currentState.isStandalone || currentState.isInstalled) {
 			return 'already_installed';
+		}
+
+		// Sync latest window prompt if captured right before click
+		let currentPrompt = currentState.deferredPrompt || window.__pwaDeferredPrompt || null;
+
+		// If Chromium is still finishing Service Worker activation on first visit, wait briefly (up to 1.5s)
+		if (!currentPrompt && currentState.isChromium) {
+			await new Promise<void>((resolve) => {
+				let done = false;
+				const finish = () => {
+					if (done) return;
+					done = true;
+					window.removeEventListener('pwa-install-ready', finish);
+					resolve();
+				};
+				window.addEventListener('pwa-install-ready', finish);
+				setTimeout(finish, 1500);
+			});
+			currentPrompt = get(state).deferredPrompt || window.__pwaDeferredPrompt || null;
 		}
 
 		if (currentPrompt) {
 			try {
 				await currentPrompt.prompt();
 				const choice = await currentPrompt.userChoice;
+				window.__pwaDeferredPrompt = null;
+
 				if (choice.outcome === 'accepted') {
+					try {
+						localStorage.setItem('pq_pwa_installed', '1');
+					} catch {}
 					state.update((s) => ({
 						...s,
 						deferredPrompt: null,
@@ -259,6 +328,7 @@ export const pwaStore = {
 					showInstallModal.set(false);
 					return 'accepted';
 				} else {
+					state.update((s) => ({ ...s, deferredPrompt: null }));
 					return 'dismissed';
 				}
 			} catch (err) {
@@ -266,9 +336,80 @@ export const pwaStore = {
 			}
 		}
 
-		// If on iOS or no prompt available, trigger modal instructions
+		// Check if user previously installed it in this browser
+		try {
+			if (localStorage.getItem('pq_pwa_installed') === '1' && currentState.isChromium) {
+				return 'already_installed';
+			}
+		} catch {}
+
 		showInstallModal.set(true);
 		return 'manual';
+	},
+
+	// Downloads a standalone desktop/mobile launcher shortcut when browser lacks native JS install API (e.g. Safari/Firefox)
+	downloadLauncherShortcut: () => {
+		if (typeof window === 'undefined') return;
+		const appOrigin = window.location.origin;
+		const ua = window.navigator.userAgent.toLowerCase();
+		const isMac = /macintosh|mac os x/.test(ua) && !/iphone|ipad/.test(ua);
+		const isWin = /windows/.test(ua);
+
+		if (isWin) {
+			const urlFileContent = `[InternetShortcut]\r\nURL=${appOrigin}/quran\r\nIconFile=${appOrigin}/favicon.png\r\nIconIndex=0\r\n`;
+			const blob = new Blob([urlFileContent], { type: 'application/internet-shortcut' });
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			a.download = "Portal Qur'an.url";
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+			return;
+		}
+
+		if (isMac) {
+			const weblocXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>URL</key>
+	<string>${appOrigin}/quran</string>
+</dict>
+</plist>`;
+			const blob = new Blob([weblocXml], { type: 'application/x-apple-plist' });
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			a.download = "Portal Qur'an.webloc";
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+			return;
+		}
+
+		const htmlLauncher = `<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${appOrigin}/quran">
+<link rel="icon" href="${appOrigin}/icon-192.png">
+<title>Portal Qur'an App</title>
+<script>window.location.replace("${appOrigin}/quran");<\/script>
+</head>
+<body style="background:#3E2723;color:#F8F3EC;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+Membuka Portal Qur'an...
+</body>
+</html>`;
+		const blob = new Blob([htmlLauncher], { type: 'text/html;charset=utf-8' });
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = 'Portal-Quran-App.html';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 	},
 
 	openModal: () => {
