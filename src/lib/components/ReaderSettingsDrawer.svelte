@@ -28,7 +28,7 @@
 	const modes: { id: ReadingMode; label: string; desc: string; icon: any }[] = [
 		{ id: 'terjemahan', label: 'Mode Terjemahan', desc: 'Teks Arab lengkap beserta terjemahan Bahasa Indonesia', icon: Languages },
 		{ id: 'mushaf', label: 'Mode Mushaf', desc: 'Fokus teks Arab murni seperti lembaran mushaf Madinah', icon: BookOpen },
-		{ id: 'tafsir', label: 'Mode Tafsir', desc: 'Teks Arab, terjemahan, dan uraian Tafsir Ibnu Katsir', icon: FileText },
+		{ id: 'tafsir', label: 'Mode Tafsir', desc: 'Teks Arab, terjemahan, dan uraian Tafsir Kemenag RI Bahasa Indonesia', icon: FileText },
 		{ id: 'per-kata', label: 'Mode Per Kata', desc: 'Menampilkan arti setiap mufradat/kata tepat di bawah lafazh Arab', icon: Layers },
 		{ id: 'audio', label: 'Mode Audio Karaoke', desc: 'Tampilan tilawah interaktif dengan sorotan ayat yang sedang dilantunkan', icon: Headphones },
 		{ id: 'fokus', label: 'Mode Fokus Membaca', desc: 'Tampilan bersih bebas distraksi untuk tadabbur mendalam', icon: Eye }

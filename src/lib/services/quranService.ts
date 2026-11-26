@@ -14,17 +14,41 @@ export function prefetchSurah(surahNumber: number) {
 	}
 }
 
+// Clean up legacy English tafsir cache once in browser
+let legacyCacheCleaned = false;
+function cleanLegacyTafsirCache() {
+	if (legacyCacheCleaned || typeof window === 'undefined') return;
+	legacyCacheCleaned = true;
+	try {
+		const keysToRemove: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key && key.includes('_v3_ibnkathir')) {
+				keysToRemove.push(key);
+			}
+		}
+		for (const k of keysToRemove) {
+			localStorage.removeItem(k);
+		}
+	} catch {
+		// Ignore storage access errors
+	}
+}
+
 export async function getSurahDetail(surahNumber: number): Promise<SurahDetail | null> {
 	if (surahNumber < 1 || surahNumber > 114) return null;
+
+	cleanLegacyTafsirCache();
 
 	// Check in-memory cache (Instant 0ms)
 	if (surahCache.has(surahNumber)) {
 		return surahCache.get(surahNumber)!;
 	}
 
+	const localKey = `pq_surah_detail_${surahNumber}_v4_tafsir_id`;
+
 	// Check localStorage in browser (Instant 1ms)
 	if (typeof window !== 'undefined') {
-		const localKey = `pq_surah_detail_${surahNumber}_v3_ibnkathir`;
 		const cached = localStorage.getItem(localKey);
 		if (cached) {
 			try {
@@ -55,27 +79,47 @@ export async function getSurahDetail(surahNumber: number): Promise<SurahDetail |
 		const [suratRes, wbwRes, tafsirRes] = await Promise.allSettled([
 			fetch(`https://equran.id/api/v2/surat/${surahNumber}`, { signal: controller.signal }),
 			fetch(`https://api.quran.com/api/v4/verses/by_chapter/${surahNumber}?language=id&words=true&word_fields=text_uthmani,location,code_v1`, { signal: controller.signal }),
-			fetch(`https://api.quran.com/api/v4/tafsirs/169/by_chapter/${surahNumber}`, { signal: controller.signal })
+			fetch(`https://equran.id/api/v2/tafsir/${surahNumber}`, { signal: controller.signal })
 		]);
 		clearTimeout(timeoutId);
 
-		// 1. Process Authentic Tafsir Ibnu Katsir (Resource ID 169)
-		let tafsirIbnuKatsirMap: Record<number, string> = {};
+		// 1. Process Tafsir Bahasa Indonesia (Kemenag RI via equran.id, fallback Jalalain ID)
+		let tafsirIndonesiaMap: Record<number, string> = {};
 		if (tafsirRes.status === 'fulfilled' && tafsirRes.value.ok) {
 			try {
 				const tafsirJson = await tafsirRes.value.json();
-				if (tafsirJson.tafsirs && Array.isArray(tafsirJson.tafsirs)) {
-					for (const item of tafsirJson.tafsirs) {
-						if (item.verse_key) {
-							const ayahNum = parseInt(item.verse_key.split(':')[1], 10);
-							if (!isNaN(ayahNum)) {
-								tafsirIbnuKatsirMap[ayahNum] = stripHtml(item.text || '');
+				const tafsirList = tafsirJson?.data?.tafsir;
+				if (Array.isArray(tafsirList)) {
+					for (const item of tafsirList) {
+						const ayahNum = Number(item.ayat);
+						if (!isNaN(ayahNum) && item.teks) {
+							tafsirIndonesiaMap[ayahNum] = stripHtml(item.teks);
+						}
+					}
+				}
+			} catch (e) {
+				console.debug('Tafsir Kemenag RI parse note:', e);
+			}
+		}
+
+		// Secondary Indonesian Tafsir fallback if equran.id tafsir endpoint didn't populate
+		if (Object.keys(tafsirIndonesiaMap).length === 0) {
+			try {
+				const jalalaynRes = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/id.jalalayn`);
+				if (jalalaynRes.ok) {
+					const jalalaynJson = await jalalaynRes.json();
+					const ayahsList = jalalaynJson?.data?.ayahs;
+					if (Array.isArray(ayahsList)) {
+						for (const item of ayahsList) {
+							const ayahNum = Number(item.numberInSurah);
+							if (!isNaN(ayahNum) && item.text) {
+								tafsirIndonesiaMap[ayahNum] = stripHtml(item.text);
 							}
 						}
 					}
 				}
 			} catch (e) {
-				console.debug('Tafsir Ibnu Katsir parse note:', e);
+				console.debug('Tafsir Jalalain fallback note:', e);
 			}
 		}
 
@@ -126,7 +170,7 @@ export async function getSurahDetail(surahNumber: number): Promise<SurahDetail |
 					}));
 				}
 
-				const tafsirText = tafsirIbnuKatsirMap[ayahNum] || `Tafsir Ibnu Katsir untuk Surah ${meta.name_latin} ayat ${ayahNum}.`;
+				const tafsirText = tafsirIndonesiaMap[ayahNum] || `Tafsir Kemenag RI untuk Surah ${meta.name_latin} ayat ${ayahNum}.`;
 
 				return {
 					surah_number: surahNumber,
@@ -152,7 +196,7 @@ export async function getSurahDetail(surahNumber: number): Promise<SurahDetail |
 			surahCache.set(surahNumber, fullDetail);
 			if (typeof window !== 'undefined') {
 				try {
-					localStorage.setItem(`pq_surah_detail_${surahNumber}_v3_ibnkathir`, JSON.stringify(fullDetail));
+					localStorage.setItem(localKey, JSON.stringify(fullDetail));
 				} catch {
 					// Storage full protection
 				}
@@ -180,7 +224,7 @@ export async function getSurahDetail(surahNumber: number): Promise<SurahDetail |
 			text_arabic: num === 1 && surahNumber !== 9 ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : `آية رقم ${num} من سورة ${meta.name_arabic}`,
 			text_latin: num === 1 && surahNumber !== 9 ? 'Bismillaahir-rahmaanir-rahiim' : `Ayat nomor ${num} dari surah ${meta.name_latin}`,
 			text_id: num === 1 && surahNumber !== 9 ? 'Dengan nama Allah Yang Maha Pengasih, Maha Penyayang.' : `Terjemahan ayat ke-${num} surah ${meta.name_latin}.`,
-			tafsir_ringkas: `Tafsir Ibnu Katsir untuk ayat ${num} surah ${meta.name_latin}.`,
+			tafsir_ringkas: `Tafsir Kemenag RI untuk ayat ${num} surah ${meta.name_latin}.`,
 			audio_url: `https://everyayah.com/data/Alafasy_128kbps/${pad3(surahNumber)}${pad3(num)}.mp3`,
 			words: [
 				{ position: 1, arabic: 'بِسْمِ', latin: "bis'mi", translation: 'dengan nama' },

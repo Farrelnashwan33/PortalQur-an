@@ -99,14 +99,14 @@
 			</p>
 		</div>
 
-		<!-- Tafsir Ibnu Katsir -->
+		<!-- Tafsir Kemenag RI -->
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
-				<h2 class="text-xs font-bold uppercase tracking-wider text-quran-chocolate">Tafsir Ibnu Katsir</h2>
-				<span class="text-[10px] font-semibold text-quran-warm">Sumber: Tafsir Ibnu Katsir</span>
+				<h2 class="text-xs font-bold uppercase tracking-wider text-quran-chocolate">Tafsir Kemenag RI</h2>
+				<span class="text-[10px] font-semibold text-quran-warm">Sumber: Kementerian Agama RI</span>
 			</div>
 			<div class="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60 text-xs text-quran-dark leading-relaxed whitespace-pre-line">
-				{ayah.tafsir_ringkas || 'Tafsir Ibnu Katsir untuk ayat ini memberikan petunjuk dan hikmah ketakwaan bagi setiap insan beriman.'}
+				{ayah.tafsir_ringkas || 'Tafsir Kementerian Agama RI untuk ayat ini memberikan petunjuk dan hikmah ketakwaan bagi setiap insan beriman.'}
 			</div>
 		</div>
 

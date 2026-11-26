@@ -54,12 +54,31 @@
 </script>
 
 {#if $audioStore.isVisible && $audioStore.audioUrl}
+	{#if qariDropdownOpen || speedDropdownOpen}
+		<div 
+			class="fixed inset-0 z-30" 
+			on:click={() => {
+				qariDropdownOpen = false;
+				speedDropdownOpen = false;
+			}}
+			on:keydown={(e) => {
+				if (e.key === 'Escape') {
+					qariDropdownOpen = false;
+					speedDropdownOpen = false;
+				}
+			}}
+			role="button"
+			tabindex="0"
+			aria-label="Tutup Menu Pemutar Audio"
+		></div>
+	{/if}
+
 	<!-- Floating audio container with high z-index and sleek positioning -->
 	<div class="fixed bottom-16 lg:bottom-4 left-2 right-2 sm:left-4 sm:right-4 max-w-4xl mx-auto z-40 animate-in slide-in-from-bottom-3 duration-200">
-		<div class="bg-quran-dark/95 backdrop-blur-xl text-quran-cream rounded-2xl shadow-luxury-hover border border-quran-gold/50 overflow-hidden transition-all">
+		<div class="relative bg-quran-dark/95 backdrop-blur-xl text-quran-cream rounded-2xl shadow-luxury-hover border border-quran-gold/50 transition-all">
 			
 			<!-- Progress Bar Top Line (Seeking) -->
-			<div class="relative w-full h-1.5 bg-quran-chocolate/80 group cursor-pointer">
+			<div class="relative w-full h-1.5 bg-quran-chocolate/80 rounded-t-2xl overflow-hidden group cursor-pointer">
 				<div 
 					class="absolute top-0 left-0 bottom-0 bg-gradient-gold transition-all duration-100"
 					style="width: {($audioStore.duration > 0 ? ($audioStore.currentTime / $audioStore.duration) * 100 : 0)}%"
@@ -161,7 +180,10 @@
 					<!-- Qari Selector Dropdown -->
 					<div class="relative">
 						<button 
-							on:click={() => qariDropdownOpen = !qariDropdownOpen}
+							on:click={() => {
+								qariDropdownOpen = !qariDropdownOpen;
+								if (qariDropdownOpen) speedDropdownOpen = false;
+							}}
 							class="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-quran-chocolate/80 text-xs text-quran-goldLight hover:text-white border border-quran-border/30 transition"
 							title="Pilih Syeikh / Qari"
 						>
@@ -171,15 +193,7 @@
 						</button>
 
 						{#if qariDropdownOpen}
-							<div 
-								class="fixed inset-0 z-40" 
-								on:click={() => qariDropdownOpen = false}
-								on:keydown={(e) => e.key === 'Escape' && (qariDropdownOpen = false)}
-								role="button"
-								tabindex="0"
-								aria-label="Tutup Qari Menu"
-							></div>
-							<div class="absolute right-0 bottom-full mb-2 w-64 max-h-64 overflow-y-auto bg-quran-dark rounded-xl border border-quran-gold/40 shadow-luxury-hover p-1.5 z-50 animate-in fade-in zoom-in-95">
+							<div class="absolute right-0 bottom-full mb-2.5 w-64 max-h-64 overflow-y-auto bg-quran-dark rounded-xl border border-quran-gold/50 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95">
 								<div class="px-2 py-1 text-[10px] font-bold text-quran-gold uppercase border-b border-quran-chocolate">
 									Pilihan Syeikh / Qari
 								</div>
@@ -207,8 +221,11 @@
 					<!-- Speed Picker Dropdown -->
 					<div class="relative">
 						<button 
-							on:click={() => speedDropdownOpen = !speedDropdownOpen}
-							class="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-quran-chocolate/60 text-[10px] sm:text-xs font-mono text-quran-gold hover:text-white transition"
+							on:click={() => {
+								speedDropdownOpen = !speedDropdownOpen;
+								if (speedDropdownOpen) qariDropdownOpen = false;
+							}}
+							class="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-quran-chocolate/60 text-[10px] sm:text-xs font-mono text-quran-gold hover:text-white border {speedDropdownOpen ? 'border-quran-gold/60 bg-quran-chocolate' : 'border-transparent'} transition"
 							title="Kecepatan Audio"
 							aria-label="Kecepatan Audio"
 						>
@@ -217,22 +234,17 @@
 						</button>
 
 						{#if speedDropdownOpen}
-							<div 
-								class="fixed inset-0 z-40" 
-								on:click={() => speedDropdownOpen = false}
-								on:keydown={(e) => e.key === 'Escape' && (speedDropdownOpen = false)}
-								role="button"
-								tabindex="0"
-								aria-label="Tutup Kecepatan Menu"
-							></div>
-							<div class="absolute right-0 bottom-full mb-2 w-24 bg-quran-dark rounded-xl border border-quran-gold/40 shadow-luxury-hover p-1 z-50">
+							<div class="absolute right-0 bottom-full mb-2.5 w-28 bg-quran-dark rounded-xl border border-quran-gold/50 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+								<div class="px-2 py-1 text-[9px] font-bold text-quran-gold uppercase tracking-wider border-b border-quran-chocolate/80 mb-1 text-center">
+									Kecepatan
+								</div>
 								{#each speeds as sp}
 									<button 
 										on:click={() => {
 											audioStore.setPlaybackRate(sp);
 											speedDropdownOpen = false;
 										}}
-										class="w-full text-center px-2 py-1.5 rounded text-xs font-mono {$audioStore.playbackRate === sp ? 'bg-quran-gold text-quran-dark font-bold' : 'text-quran-cream hover:bg-quran-chocolate/60'}"
+										class="w-full text-center px-2 py-1.5 rounded-lg text-xs font-mono transition {$audioStore.playbackRate === sp ? 'bg-quran-gold text-quran-dark font-bold' : 'text-quran-cream hover:bg-quran-chocolate/60'}"
 									>
 										{sp}x
 									</button>

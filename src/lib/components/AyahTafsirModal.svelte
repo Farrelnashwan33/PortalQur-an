@@ -13,7 +13,7 @@
 
 	function handleCopy() {
 		if (!ayah) return;
-		const text = `Surah ${surahName} [${ayah.surah_number}:${ayah.ayah_number}]\n\n${ayah.text_arabic}\n\nArtinya: "${ayah.text_id}"\n\nTafsir Ringkas:\n${ayah.tafsir_ringkas || 'Tafsir Ibnu Katsir'}\n\n(Dikutip via Portal Qur'an v3.3)`;
+		const text = `Surah ${surahName} [${ayah.surah_number}:${ayah.ayah_number}]\n\n${ayah.text_arabic}\n\nArtinya: "${ayah.text_id}"\n\nTafsir Kemenag RI:\n${ayah.tafsir_ringkas || 'Tafsir Kementerian Agama RI'}\n\n(Dikutip via Portal Qur'an v3.3)`;
 		navigator.clipboard.writeText(text);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
@@ -81,20 +81,20 @@
 					</p>
 				</div>
 
-				<!-- Tafsir Ibnu Katsir -->
+				<!-- Tafsir Kemenag RI -->
 				<div>
 					<div class="flex items-center justify-between mb-2">
-						<h4 class="text-xs font-bold text-quran-chocolate uppercase tracking-wider">Tafsir Ibnu Katsir</h4>
+						<h4 class="text-xs font-bold text-quran-chocolate uppercase tracking-wider">Tafsir Bahasa Indonesia</h4>
 						<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-quran-gold/20 text-quran-chocolate border border-quran-gold/30">
-							Tafsir Ibnu Katsir
+							Tafsir Kemenag RI
 						</span>
 					</div>
 					<div class="text-xs text-quran-dark leading-relaxed p-4 rounded-2xl bg-amber-50/50 border border-amber-200/60 space-y-3">
 						<p class="whitespace-pre-line">
-							{ayah.tafsir_ringkas || 'Tafsir Ibnu Katsir untuk ayat ini menjelaskan kandungan makna ayat, asbabun nuzul, serta penegasan syariat dan keimanan.'}
+							{ayah.tafsir_ringkas || 'Tafsir Kementerian Agama RI untuk ayat ini menjelaskan kandungan makna ayat, asbabun nuzul, serta penegasan syariat dan keimanan.'}
 						</p>
 						<div class="pt-2 border-t border-amber-200/60 text-[11px] text-quran-warm font-medium">
-							Sumber: <span class="font-bold text-quran-chocolate">Tafsir Ibnu Katsir</span>
+							Sumber: <span class="font-bold text-quran-chocolate">Kementerian Agama RI</span>
 						</div>
 					</div>
 				</div>

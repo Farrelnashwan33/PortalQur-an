@@ -400,7 +400,7 @@
 						<button 
 							on:click={() => openTafsir(ayah)}
 							class="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-quran-warm hover:text-quran-dark hover:bg-quran-sand transition"
-							title="Buka Tafsir Ibnu Katsir"
+							title="Buka Tafsir Bahasa Indonesia"
 						>
 							<FileText class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
 						</button>
@@ -528,12 +528,12 @@
 							<div class="flex items-center justify-between font-bold text-quran-chocolate">
 								<div class="flex items-center gap-1.5">
 									<FileText class="w-3.5 h-3.5 text-quran-gold" />
-									<span>TAFSIR IBNU KATSIR</span>
+									<span>TAFSIR KEMENAG RI</span>
 								</div>
-								<span class="text-[10px] font-semibold text-quran-warm">Sumber: Tafsir Ibnu Katsir</span>
+								<span class="text-[10px] font-semibold text-quran-warm">Sumber: Kementerian Agama RI</span>
 							</div>
 							<p class="text-quran-warm leading-relaxed whitespace-pre-line">
-								{ayah.tafsir_ringkas || 'Memuat uraian makna dan hikmah ayat suci Al-Qur\'an berdasarkan Tafsir Ibnu Katsir.'}
+								{ayah.tafsir_ringkas || 'Memuat uraian makna dan hikmah ayat suci Al-Qur\'an dalam Bahasa Indonesia.'}
 							</p>
 						</div>
 					</div>

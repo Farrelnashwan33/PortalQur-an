@@ -74,6 +74,8 @@ self.addEventListener('fetch', (event) => {
 		url.hostname.includes('everyayah.com') ||
 		url.hostname.includes('qurancdn.com') ||
 		url.hostname.includes('api.quran.com') ||
+		url.hostname.includes('equran.id') ||
+		url.hostname.includes('alquran.cloud') ||
 		url.hostname.includes('api.myquran.com') ||
 		url.hostname.includes('unsplash.com')
 	) {
