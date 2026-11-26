@@ -5,16 +5,45 @@ import { supabase, isSupabaseConfigured } from '$lib/supabase/client';
 
 const AGENDAS_STORAGE_KEY = 'pq_agendas_data_v33';
 
+const CATEGORY_DEFAULT_IMAGES: Record<string, string> = {
+	Kajian: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=800&auto=format&fit=crop',
+	Tilawah: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=800&auto=format&fit=crop',
+	Event: '/images/agendas/tilawah-harian.jpg',
+	Pengingat: '/images/agendas/alkahfi-friday.jpg'
+};
+
+function normalizeAgendaItem(agenda: Agenda): Agenda {
+	const url = agenda.image_url?.trim() || '';
+	if (url.includes('photo-1507692049790-de58290a4334')) {
+		return { ...agenda, image_url: '/images/agendas/alkahfi-friday.jpg' };
+	}
+	if (url.includes('photo-1542838132-92c53300491e')) {
+		return { ...agenda, image_url: '/images/agendas/tilawah-harian.jpg' };
+	}
+	if (!url) {
+		return {
+			...agenda,
+			image_url: CATEGORY_DEFAULT_IMAGES[agenda.category] || '/images/agendas/alkahfi-friday.jpg'
+		};
+	}
+	return agenda;
+}
+
+function normalizeAgendas(items: Agenda[]): Agenda[] {
+	return items.map(normalizeAgendaItem);
+}
+
 function createAgendaStore() {
-	let initialAgendas: Agenda[] = SAMPLE_AGENDAS;
+	let initialAgendas: Agenda[] = normalizeAgendas(SAMPLE_AGENDAS);
 
 	if (typeof window !== 'undefined') {
 		const stored = localStorage.getItem(AGENDAS_STORAGE_KEY);
 		if (stored) {
 			try {
-				initialAgendas = JSON.parse(stored);
+				initialAgendas = normalizeAgendas(JSON.parse(stored));
+				localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(initialAgendas));
 			} catch {
-				initialAgendas = SAMPLE_AGENDAS;
+				initialAgendas = normalizeAgendas(SAMPLE_AGENDAS);
 			}
 		}
 	}
@@ -30,8 +59,9 @@ function createAgendaStore() {
 					.select('*')
 					.order('event_date', { ascending: true });
 				if (!error && data && data.length > 0) {
-					set(data as Agenda[]);
-					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(data));
+					const normalized = normalizeAgendas(data as Agenda[]);
+					set(normalized);
+					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(normalized));
 				}
 			} catch {}
 		})();
@@ -40,8 +70,9 @@ function createAgendaStore() {
 	return {
 		subscribe,
 		addAgenda: async (agenda: Agenda) => {
+			const normalizedAgenda = normalizeAgendaItem(agenda);
 			update((items) => {
-				const updated = [agenda, ...items];
+				const updated = [normalizedAgenda, ...items];
 				if (typeof window !== 'undefined') {
 					localStorage.setItem(AGENDAS_STORAGE_KEY, JSON.stringify(updated));
 				}
@@ -50,7 +81,7 @@ function createAgendaStore() {
 
 			if (isSupabaseConfigured()) {
 				try {
-					await supabase.from('agendas').insert([agenda]);
+					await supabase.from('agendas').insert([normalizedAgenda]);
 				} catch (e) {
 					console.warn('Supabase agenda insert error:', e);
 				}

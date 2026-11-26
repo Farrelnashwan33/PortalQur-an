@@ -482,10 +482,11 @@ INSERT INTO public.topics (title, slug, category, description, icon, color) VALU
 ON CONFLICT (slug) DO NOTHING;
 
 -- Seed Agendas
-INSERT INTO public.agendas (title, category, description, event_date, location, speaker, status) VALUES
-('Kajian Akbar: Menyelami Samudra Al-Baqarah', 'Kajian', 'Tadabbur mendalam mengenai hukum, kisah para Nabi, dan petunjuk keimanan dalam Surah Al-Baqarah.', NOW() + INTERVAL '3 days', 'Masjid Raya Al-Ikhlas & Zoom Live', 'Ust. Dr. Muhammad Zulkarnain, MA', 'published'),
-('Khatam Bersama: Malam Nuzulul Quran', 'Tilawah', 'Simaan Al-Qur''an 30 Juz serentak bersama para huffadz dan jamaah Portal Qur''an.', NOW() + INTERVAL '7 days', 'Auditorium Utama & Live YouTube', 'Dewan Asatidz Portal Qur''an', 'published'),
-('Webinar: Rahasia Istiqomah Tilawah Harian', 'Event', 'Tips membangun kebiasaan membaca Qur''an minimal 1 juz per hari tanpa merasa terbebani.', NOW() + INTERVAL '12 days', 'Zoom Meeting Interaktif', 'Ust. Ahmad Fauzan Al-Hafizh', 'published')
+INSERT INTO public.agendas (title, category, description, event_date, location, speaker, image_url, status) VALUES
+('Kajian Akbar: Menyelami Samudra Al-Baqarah', 'Kajian', 'Tadabbur mendalam mengenai hukum, kisah para Nabi, dan petunjuk keimanan dalam Surah Al-Baqarah.', NOW() + INTERVAL '3 days', 'Masjid Raya Al-Ikhlas & Zoom Live', 'Ust. Dr. Muhammad Zulkarnain, MA', 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=800&auto=format&fit=crop', 'published'),
+('Khatam Bersama: Malam Nuzulul Quran', 'Tilawah', 'Simaan Al-Qur''an 30 Juz serentak bersama para huffadz dan jamaah Portal Qur''an.', NOW() + INTERVAL '7 days', 'Auditorium Utama & Live YouTube', 'Dewan Asatidz Portal Qur''an', 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=800&auto=format&fit=crop', 'published'),
+('Webinar: Rahasia Istiqomah Tilawah Harian', 'Event', 'Tips membangun kebiasaan membaca Qur''an minimal 1 juz per hari tanpa merasa terbebani.', NOW() + INTERVAL '12 days', 'Zoom Meeting Interaktif', 'Ust. Ahmad Fauzan Al-Hafizh', '/images/agendas/tilawah-harian.jpg', 'published'),
+('Pengingat: Tilawah & Tadabbur Surah Al-Kahfi', 'Pengingat', 'Sunnah membaca Surah Al-Kahfi di hari Jum''at sebagai penerang cahaya di antara dua Jum''at.', NOW() + INTERVAL '2 days', 'Portal Qur''an Mobile & Desktop', 'Tim Portal Qur''an', '/images/agendas/alkahfi-friday.jpg', 'published')
 ON CONFLICT DO NOTHING;
 
 -- Seed App Settings

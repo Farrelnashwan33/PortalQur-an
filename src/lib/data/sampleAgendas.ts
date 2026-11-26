@@ -31,7 +31,7 @@ export const SAMPLE_AGENDAS: Agenda[] = [
 		event_date: '2026-09-28T09:00:00+07:00',
 		location: 'Zoom Meeting Interaktif',
 		speaker: 'Ust. Ahmad Fauzan Al-Hafizh',
-		image_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop',
+		image_url: '/images/agendas/tilawah-harian.jpg',
 		status: 'published'
 	},
 	{
@@ -42,7 +42,7 @@ export const SAMPLE_AGENDAS: Agenda[] = [
 		event_date: '2026-09-18T05:00:00+07:00',
 		location: 'Portal Qur\'an Mobile & Desktop',
 		speaker: 'Tim Portal Qur\'an',
-		image_url: 'https://images.unsplash.com/photo-1507692049790-de58290a4334?w=800&auto=format&fit=crop',
+		image_url: '/images/agendas/alkahfi-friday.jpg',
 		status: 'published'
 	}
 ];
